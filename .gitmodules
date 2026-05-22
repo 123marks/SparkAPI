@@ -1,0 +1,3 @@
+[submodule "deploy/CPACodexKeeper"]
+	path = deploy/CPACodexKeeper
+	url = https://github.com/5345asda/CPACodexKeeper.git
