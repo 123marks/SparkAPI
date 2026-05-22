@@ -22,6 +22,20 @@ import type {
   CheckMixedChannelResponse
 } from '@/types'
 
+export interface AccountListFilters {
+  platform?: string
+  type?: string
+  status?: string
+  group?: string
+  search?: string
+  privacy_mode?: string
+  created_from?: string
+  created_to?: string
+  lite?: string
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+}
+
 /**
  * List all accounts with pagination
  * @param page - Page number (default: 1)
@@ -32,17 +46,7 @@ import type {
 export async function list(
   page: number = 1,
   pageSize: number = 20,
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    group?: string
-    search?: string
-    privacy_mode?: string
-    lite?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
+  filters?: AccountListFilters,
   options?: {
     signal?: AbortSignal
   }
@@ -67,17 +71,7 @@ export interface AccountListWithEtagResult {
 export async function listWithEtag(
   page: number = 1,
   pageSize: number = 20,
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    group?: string
-    search?: string
-    privacy_mode?: string
-    lite?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
+  filters?: AccountListFilters,
   options?: {
     signal?: AbortSignal
     etag?: string | null
@@ -528,6 +522,8 @@ export async function exportData(options?: {
     status?: string
     group?: string
     privacy_mode?: string
+    created_from?: string
+    created_to?: string
     search?: string
     sort_by?: string
     sort_order?: 'asc' | 'desc'
@@ -538,12 +534,14 @@ export async function exportData(options?: {
   if (options?.ids && options.ids.length > 0) {
     params.ids = options.ids.join(',')
   } else if (options?.filters) {
-    const { platform, type, status, group, privacy_mode, search, sort_by, sort_order } = options.filters
+    const { platform, type, status, group, privacy_mode, created_from, created_to, search, sort_by, sort_order } = options.filters
     if (platform) params.platform = platform
     if (type) params.type = type
     if (status) params.status = status
     if (group) params.group = group
     if (privacy_mode) params.privacy_mode = privacy_mode
+    if (created_from) params.created_from = created_from
+    if (created_to) params.created_to = created_to
     if (search) params.search = search
     if (sort_by) params.sort_by = sort_by
     if (sort_order) params.sort_order = sort_order

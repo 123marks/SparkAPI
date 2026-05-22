@@ -775,7 +775,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		LoginAgreementDocuments:          loginAgreementDocuments,
 		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
-		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
+		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "SparkAPI"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
@@ -2299,7 +2299,7 @@ func (s *SettingService) IsTotpEncryptionKeyConfigured() bool {
 func (s *SettingService) GetSiteName(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeySiteName)
 	if err != nil || value == "" {
-		return "Sub2API"
+		return "SparkAPI"
 	}
 	return value
 }
@@ -2487,12 +2487,12 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyLoginAgreementUpdatedAt:                   defaultLoginAgreementDate,
 		SettingKeyLoginAgreementDocuments:                   loginAgreementDocumentsJSON,
 		SettingKeyAPIKeyACLTrustForwardedIP:                 "false",
-		SettingKeySiteName:                                  "Sub2API",
+		SettingKeySiteName:                                  "SparkAPI",
 		SettingKeySiteLogo:                                  "",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",
-		SettingKeyTableDefaultPageSize:                      "20",
-		SettingKeyTablePageSizeOptions:                      "[10,20,50,100]",
+		SettingKeyTableDefaultPageSize:                      "100",
+		SettingKeyTablePageSizeOptions:                      "[20,50,100,200,500,1000]",
 		SettingKeyCustomMenuItems:                           "[]",
 		SettingKeyCustomEndpoints:                           "[]",
 		SettingKeyWeChatConnectEnabled:                      "false",
@@ -2675,7 +2675,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
 		TurnstileSecretKeyConfigured:     settings[SettingKeyTurnstileSecretKey] != "",
 		APIKeyACLTrustForwardedIP:        apiKeyACLTrustForwardedIP,
-		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
+		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "SparkAPI"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
@@ -3334,7 +3334,7 @@ func parseTablePreferences(defaultPageSizeRaw, optionsRaw string) (int, []int) {
 func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) {
 	const minPageSize = 5
 	const maxPageSize = 1000
-	const fallbackPageSize = 20
+	const fallbackPageSize = 100
 
 	seen := make(map[int]struct{}, len(options))
 	normalizedOptions := make([]int, 0, len(options))
@@ -3355,7 +3355,7 @@ func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) 
 	}
 
 	if len(normalizedOptions) == 0 {
-		normalizedOptions = []int{10, 20, 50}
+		normalizedOptions = []int{20, 50, 100, 200, 500, 1000}
 	}
 
 	return defaultPageSize, normalizedOptions

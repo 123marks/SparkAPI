@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
@@ -20,12 +21,14 @@ type accountRepoStubForAdminList struct {
 	listWithFiltersStatus   string
 	listWithFiltersSearch   string
 	listWithFiltersPrivacy  string
+	listWithFiltersFrom     *time.Time
+	listWithFiltersTo       *time.Time
 	listWithFiltersAccounts []Account
 	listWithFiltersResult   *pagination.PaginationResult
 	listWithFiltersErr      error
 }
 
-func (s *accountRepoStubForAdminList) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (s *accountRepoStubForAdminList) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string, createdFrom, createdTo *time.Time) ([]Account, *pagination.PaginationResult, error) {
 	s.listWithFiltersCalls++
 	s.listWithFiltersParams = params
 	s.listWithFiltersPlatform = platform
@@ -33,6 +36,8 @@ func (s *accountRepoStubForAdminList) ListWithFilters(_ context.Context, params 
 	s.listWithFiltersStatus = status
 	s.listWithFiltersSearch = search
 	s.listWithFiltersPrivacy = privacyMode
+	s.listWithFiltersFrom = createdFrom
+	s.listWithFiltersTo = createdTo
 
 	if s.listWithFiltersErr != nil {
 		return nil, nil, s.listWithFiltersErr
@@ -170,7 +175,7 @@ func TestAdminService_ListAccounts_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{accountRepo: repo}
 
-		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformGemini, AccountTypeOAuth, StatusActive, "acc", 0, "", "name", "ASC")
+		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformGemini, AccountTypeOAuth, StatusActive, "acc", 0, "", nil, nil, "name", "ASC")
 		require.NoError(t, err)
 		require.Equal(t, int64(10), total)
 		require.Equal(t, []Account{{ID: 1, Name: "acc"}}, accounts)
@@ -192,12 +197,30 @@ func TestAdminService_ListAccounts_WithPrivacyMode(t *testing.T) {
 		}
 		svc := &adminServiceImpl{accountRepo: repo}
 
-		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, StatusActive, "acc2", 0, PrivacyModeCFBlocked, "", "")
+		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, StatusActive, "acc2", 0, PrivacyModeCFBlocked, nil, nil, "", "")
 		require.NoError(t, err)
 		require.Equal(t, int64(1), total)
 		require.Equal(t, []Account{{ID: 2, Name: "acc2"}}, accounts)
 		require.Equal(t, PrivacyModeCFBlocked, repo.listWithFiltersPrivacy)
 	})
+}
+
+func TestAdminService_ListAccounts_WithCreatedRange(t *testing.T) {
+	repo := &accountRepoStubForAdminList{
+		listWithFiltersAccounts: []Account{{ID: 3, Name: "recent"}},
+		listWithFiltersResult:   &pagination.PaginationResult{Total: 1},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	createdFrom := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	createdTo := time.Date(2026, 5, 22, 0, 0, 0, 0, time.UTC)
+
+	accounts, total, err := svc.ListAccounts(context.Background(), 1, 100, PlatformOpenAI, AccountTypeOAuth, StatusActive, "", 0, "", &createdFrom, &createdTo, "created_at", "DESC")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Equal(t, []Account{{ID: 3, Name: "recent"}}, accounts)
+	require.Equal(t, &createdFrom, repo.listWithFiltersFrom)
+	require.Equal(t, &createdTo, repo.listWithFiltersTo)
+	require.Equal(t, pagination.PaginationParams{Page: 1, PageSize: 100, SortBy: "created_at", SortOrder: "DESC"}, repo.listWithFiltersParams)
 }
 
 func TestAdminService_ListProxies_WithSearch(t *testing.T) {

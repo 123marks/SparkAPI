@@ -57,6 +57,7 @@ type DataAccount struct {
 	Concurrency        int            `json:"concurrency"`
 	Priority           int            `json:"priority"`
 	RateMultiplier     *float64       `json:"rate_multiplier,omitempty"`
+	GroupIDs           []int64        `json:"group_ids,omitempty"`
 	ExpiresAt          *int64         `json:"expires_at,omitempty"`
 	AutoPauseOnExpired *bool          `json:"auto_pause_on_expired,omitempty"`
 }
@@ -315,7 +316,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			Concurrency:          item.Concurrency,
 			Priority:             item.Priority,
 			RateMultiplier:       item.RateMultiplier,
-			GroupIDs:             nil,
+			GroupIDs:             item.GroupIDs,
 			ExpiresAt:            item.ExpiresAt,
 			AutoPauseOnExpired:   item.AutoPauseOnExpired,
 			SkipDefaultGroupBind: skipDefaultGroupBind,
@@ -376,12 +377,12 @@ func (h *AccountHandler) listAllProxies(ctx context.Context) ([]service.Proxy, e
 	return out, nil
 }
 
-func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode, sortBy, sortOrder string) ([]service.Account, error) {
+func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string, createdFrom, createdTo *time.Time, sortBy, sortOrder string) ([]service.Account, error) {
 	page := 1
 	pageSize := dataPageCap
 	var out []service.Account
 	for {
-		items, total, err := h.adminService.ListAccounts(ctx, page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+		items, total, err := h.adminService.ListAccounts(ctx, page, pageSize, platform, accountType, status, search, groupID, privacyMode, createdFrom, createdTo, sortBy, sortOrder)
 		if err != nil {
 			return nil, err
 		}
@@ -417,6 +418,10 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 	search := strings.TrimSpace(c.Query("search"))
 	sortBy := c.DefaultQuery("sort_by", "name")
 	sortOrder := c.DefaultQuery("sort_order", "asc")
+	createdFrom, createdTo, createdRangeErr := parseAccountCreatedRange(c)
+	if createdRangeErr != nil {
+		return nil, createdRangeErr
+	}
 	if len(search) > 100 {
 		search = search[:100]
 	}
@@ -434,7 +439,7 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 		}
 	}
 
-	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, privacyMode, createdFrom, createdTo, sortBy, sortOrder)
 }
 
 func (h *AccountHandler) resolveExportProxies(ctx context.Context, accounts []service.Account) ([]service.Proxy, error) {

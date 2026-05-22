@@ -157,6 +157,8 @@ type BulkUpdateAccountFilters struct {
 	Group       string `json:"group"`
 	Search      string `json:"search"`
 	PrivacyMode string `json:"privacy_mode"`
+	CreatedFrom string `json:"created_from"`
+	CreatedTo   string `json:"created_to"`
 }
 
 // CheckMixedChannelRequest represents check mixed channel risk request
@@ -177,6 +179,35 @@ type AccountWithConcurrency struct {
 }
 
 const accountListGroupUngroupedQueryValue = "ungrouped"
+
+func parseAccountCreatedRangeValues(createdFromRaw, createdToRaw string) (*time.Time, *time.Time, error) {
+	var createdFrom *time.Time
+	var createdTo *time.Time
+
+	if raw := strings.TrimSpace(createdFromRaw); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, nil, infraerrors.BadRequest("INVALID_CREATED_FROM", "invalid created_from filter")
+		}
+		createdFrom = &parsed
+	}
+	if raw := strings.TrimSpace(createdToRaw); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, nil, infraerrors.BadRequest("INVALID_CREATED_TO", "invalid created_to filter")
+		}
+		createdTo = &parsed
+	}
+	if createdFrom != nil && createdTo != nil && createdFrom.After(*createdTo) {
+		return nil, nil, infraerrors.BadRequest("INVALID_CREATED_RANGE", "created_from must be before created_to")
+	}
+
+	return createdFrom, createdTo, nil
+}
+
+func parseAccountCreatedRange(c *gin.Context) (*time.Time, *time.Time, error) {
+	return parseAccountCreatedRangeValues(c.Query("created_from"), c.Query("created_to"))
+}
 
 func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, account *service.Account) AccountWithConcurrency {
 	item := AccountWithConcurrency{
@@ -233,6 +264,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 	privacyMode := strings.TrimSpace(c.Query("privacy_mode"))
 	sortBy := c.DefaultQuery("sort_by", "name")
 	sortOrder := c.DefaultQuery("sort_order", "asc")
+	createdFrom, createdTo, createdRangeErr := parseAccountCreatedRange(c)
+	if createdRangeErr != nil {
+		response.ErrorFrom(c, createdRangeErr)
+		return
+	}
 	// 标准化和验证 search 参数
 	search = strings.TrimSpace(search)
 	if len(search) > 100 {
@@ -258,7 +294,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, createdFrom, createdTo, sortBy, sortOrder)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -1446,9 +1482,15 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		return
 	}
 
+	filters, err := toServiceBulkUpdateAccountFilters(req.Filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
 	result, err := h.adminService.BulkUpdateAccounts(c.Request.Context(), &service.BulkUpdateAccountsInput{
 		AccountIDs:            req.AccountIDs,
-		Filters:               toServiceBulkUpdateAccountFilters(req.Filters),
+		Filters:               filters,
 		Name:                  req.Name,
 		ProxyID:               req.ProxyID,
 		Concurrency:           req.Concurrency,
@@ -1484,9 +1526,13 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 	response.Success(c, result)
 }
 
-func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) *service.BulkUpdateAccountFilters {
+func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) (*service.BulkUpdateAccountFilters, error) {
 	if filters == nil {
-		return nil
+		return nil, nil
+	}
+	createdFrom, createdTo, err := parseAccountCreatedRangeValues(filters.CreatedFrom, filters.CreatedTo)
+	if err != nil {
+		return nil, err
 	}
 	return &service.BulkUpdateAccountFilters{
 		Platform:    filters.Platform,
@@ -1495,7 +1541,9 @@ func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) *servi
 		Group:       filters.Group,
 		Search:      filters.Search,
 		PrivacyMode: filters.PrivacyMode,
-	}
+		CreatedFrom: createdFrom,
+		CreatedTo:   createdTo,
+	}, nil
 }
 
 // ========== OAuth Handlers ==========
@@ -2150,7 +2198,7 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) {
 	accounts := make([]*service.Account, 0)
 
 	if len(req.AccountIDs) == 0 {
-		allAccounts, _, err := h.adminService.ListAccounts(ctx, 1, 10000, "gemini", "oauth", "", "", 0, "", "name", "asc")
+		allAccounts, _, err := h.adminService.ListAccounts(ctx, 1, 10000, "gemini", "oauth", "", "", 0, "", nil, nil, "name", "asc")
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return

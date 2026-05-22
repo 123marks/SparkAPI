@@ -301,6 +301,16 @@
           <template #cell-last_used_at="{ value }">
             <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatRelativeTime(value) }}</span>
           </template>
+          <template #cell-created_at="{ value }">
+            <div class="flex flex-col">
+              <span class="text-sm text-gray-700 dark:text-gray-200">
+                {{ value ? formatDateTime(new Date(value), { year: 'numeric', month: '2-digit', day: '2-digit' }, 'sv-SE') : '-' }}
+              </span>
+              <span v-if="value" class="text-xs text-gray-400 dark:text-dark-500">
+                {{ formatRelativeTime(value) }}
+              </span>
+            </div>
+          </template>
           <template #cell-expires_at="{ row, value }">
             <div class="flex flex-col items-start gap-1">
               <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatExpiresAt(value) }}</span>
@@ -349,7 +359,7 @@
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
-    <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
+    <ImportDataModal :show="showImportData" :groups="groups" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
       :show="showBulkEdit"
       :account-ids="selIds"
@@ -437,6 +447,8 @@ type AccountBulkEditTarget =
         group?: string
         search?: string
         privacy_mode?: string
+        created_from?: string
+        created_to?: string
         sort_by?: string
         sort_order?: AccountSortOrder
       }
@@ -509,6 +521,7 @@ const ACCOUNT_SORTABLE_KEYS = new Set([
   'priority',
   'rate_multiplier',
   'last_used_at',
+  'created_at',
   'expires_at'
 ])
 const loadInitialAccountSortState = (): AccountSortState => {
@@ -728,6 +741,9 @@ const {
     privacy_mode: '',
     group: '',
     search: '',
+    created_range: '',
+    created_from: '',
+    created_to: '',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }
@@ -934,7 +950,8 @@ const refreshAccountsIncrementally = async () => {
         search?: string
         sort_by?: string
         sort_order?: AccountSortOrder
-
+        created_from?: string
+        created_to?: string
       },
       { etag: autoRefreshETag.value }
     )
@@ -1126,6 +1143,7 @@ const allColumns = computed(() => {
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
+    { key: 'created_at', label: t('admin.accounts.columns.createdAt'), sortable: true },
     { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
     { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
     { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
@@ -1347,6 +1365,8 @@ const buildBulkEditFilterSnapshot = () => {
     group: typeof rawParams.group === 'string' ? rawParams.group : '',
     search: typeof rawParams.search === 'string' ? rawParams.search : '',
     privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
+    created_from: typeof rawParams.created_from === 'string' ? rawParams.created_from : '',
+    created_to: typeof rawParams.created_to === 'string' ? rawParams.created_to : '',
     sort_by: typeof rawParams.sort_by === 'string' ? rawParams.sort_by : '',
     sort_order: sortOrder
   }
@@ -1356,6 +1376,26 @@ const collectSelectionMetadata = (rows: Account[]) => {
   const selectedPlatforms = Array.from(new Set(rows.map(account => account.platform)))
   const selectedTypes = Array.from(new Set(rows.map(account => account.type)))
   return { selectedPlatforms, selectedTypes }
+}
+
+const collectFilteredBulkEditMetadata = async (filters: ReturnType<typeof buildBulkEditFilterSnapshot>) => {
+  const pageSize = 1000
+  let page = 1
+  const rows: Account[] = []
+  let total = 0
+
+  do {
+    const response = await adminAPI.accounts.list(page, pageSize, filters)
+    rows.push(...response.items)
+    total = response.total
+    if (response.items.length === 0) break
+    page += 1
+  } while (rows.length < total)
+
+  return {
+    previewCount: total,
+    ...collectSelectionMetadata(rows)
+  }
 }
 
 const openBulkEditSelected = () => {
@@ -1370,12 +1410,11 @@ const openBulkEditSelected = () => {
 
 const openBulkEditFiltered = async () => {
   const filters = buildBulkEditFilterSnapshot()
-  const preview = await adminAPI.accounts.list(1, 100, filters)
-  const { selectedPlatforms, selectedTypes } = collectSelectionMetadata(preview.items)
+  const { previewCount, selectedPlatforms, selectedTypes } = await collectFilteredBulkEditMetadata(filters)
   bulkEditTarget.value = {
     mode: 'filtered',
     filters,
-    previewCount: preview.total,
+    previewCount,
     selectedPlatforms,
     selectedTypes
   }
@@ -1397,6 +1436,8 @@ const buildAccountQueryFilters = () => ({
   status: params.status || '',
   group: params.group || '',
   privacy_mode: params.privacy_mode || '',
+  created_from: params.created_from || '',
+  created_to: params.created_to || '',
   search: params.search || '',
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
@@ -1439,6 +1480,15 @@ const accountMatchesCurrentFilters = (account: Account) => {
     } else if (privacyMode !== filters.privacy_mode) {
       return false
     }
+  }
+  const createdAt = account.created_at ? new Date(account.created_at).getTime() : Number.NaN
+  if (filters.created_from) {
+    const from = new Date(filters.created_from).getTime()
+    if (Number.isFinite(from) && (!Number.isFinite(createdAt) || createdAt < from)) return false
+  }
+  if (filters.created_to) {
+    const to = new Date(filters.created_to).getTime()
+    if (Number.isFinite(to) && (!Number.isFinite(createdAt) || createdAt >= to)) return false
   }
   const search = String(filters.search || '').trim().toLowerCase()
   if (search && !account.name.toLowerCase().includes(search)) return false

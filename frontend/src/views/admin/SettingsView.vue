@@ -5598,7 +5598,7 @@
                       v-model="form.payment_product_name_prefix"
                       type="text"
                       class="input"
-                      placeholder="Sub2API"
+                      placeholder="SparkAPI"
                     />
                   </div>
                   <div>
@@ -5620,7 +5620,7 @@
                       class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
                     >
                       {{
-                        (form.payment_product_name_prefix || "Sub2API") +
+                        (form.payment_product_name_prefix || "SparkAPI") +
                         " 100 " +
                         (form.payment_product_name_suffix || "CNY")
                       }}
@@ -6763,7 +6763,7 @@ const openaiFastPolicyLoaded = ref(false);
 
 const tablePageSizeMin = 5;
 const tablePageSizeMax = 1000;
-const tablePageSizeDefault = 20;
+const tablePageSizeDefault = 100;
 
 function defaultLoginAgreementDocuments(): LoginAgreementDocument[] {
   return [
@@ -6864,7 +6864,7 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
-  site_name: "Sub2API",
+  site_name: "SparkAPI",
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",
@@ -6896,7 +6896,7 @@ const form = reactive<SettingsForm>({
   payment_cancel_rate_limit_window_mode: "rolling",
   payment_alipay_force_qrcode: false,
   table_default_page_size: tablePageSizeDefault,
-  table_page_size_options: [10, 20, 50, 100],
+  table_page_size_options: [20, 50, 100, 200, 500, 1000],
   custom_menu_items: [] as Array<{
     id: string;
     label: string;
@@ -7675,7 +7675,7 @@ async function loadSettings() {
     tablePageSizeOptionsInput.value = formatTablePageSizeOptions(
       Array.isArray(settings.table_page_size_options)
         ? settings.table_page_size_options
-        : [10, 20, 50, 100],
+        : [20, 50, 100, 200, 500, 1000],
     );
     registrationEmailSuffixWhitelistDraft.value = "";
     form.smtp_password = "";
@@ -8234,7 +8234,7 @@ async function saveSettings() {
     tablePageSizeOptionsInput.value = formatTablePageSizeOptions(
       Array.isArray(updated.table_page_size_options)
         ? updated.table_page_size_options
-        : [10, 20, 50, 100],
+        : [20, 50, 100, 200, 500, 1000],
     );
     registrationEmailSuffixWhitelistDraft.value = "";
     form.smtp_password = "";
