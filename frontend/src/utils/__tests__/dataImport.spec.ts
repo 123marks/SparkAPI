@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { mergeAdminDataPayloads, parseAdminDataImportContent } from '@/utils/dataImport'
+import {
+  ADMIN_DATA_IMPORT_MAX_FILES,
+  ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES,
+  ADMIN_DATA_IMPORT_MAX_TOTAL_BYTES,
+  formatBytes,
+  getAdminDataImportFileValidation,
+  mergeAdminDataPayloads,
+  parseAdminDataImportContent
+} from '@/utils/dataImport'
 import type { AdminDataPayload } from '@/types'
 
 function payload(partial: Partial<AdminDataPayload>): AdminDataPayload {
@@ -86,5 +94,37 @@ describe('dataImport utilities', () => {
     expect(() => parseAdminDataImportContent(JSON.stringify({ accounts: [] }), 'bad.json')).toThrow(
       'bad.json'
     )
+  })
+
+  it('validates import file count and size limits before reading files', () => {
+    expect(
+      getAdminDataImportFileValidation(
+        Array.from({ length: ADMIN_DATA_IMPORT_MAX_FILES + 1 }, (_, index) => ({
+          name: `backup-${index}.json`,
+          size: 1
+        }))
+      )
+    ).toMatchObject({ valid: false, reason: 'too_many_files' })
+
+    expect(
+      getAdminDataImportFileValidation([
+        { name: 'large.json', size: ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES + 1 }
+      ])
+    ).toMatchObject({ valid: false, reason: 'file_too_large', fileName: 'large.json' })
+
+    expect(
+      getAdminDataImportFileValidation([
+        { name: 'a.json', size: 20 * 1024 * 1024 },
+        { name: 'b.json', size: 20 * 1024 * 1024 },
+        { name: 'c.json', size: 20 * 1024 * 1024 }
+      ])
+    ).toMatchObject({ valid: false, reason: 'total_too_large' })
+  })
+
+  it('formats file sizes for import feedback', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(1024)).toBe('1.0 KB')
+    expect(formatBytes(10 * 1024)).toBe('10 KB')
+    expect(formatBytes(1024 * 1024)).toBe('1.0 MB')
   })
 })

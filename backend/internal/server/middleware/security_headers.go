@@ -19,7 +19,9 @@ const (
 	// CloudflareInsightsDomain is the domain for Cloudflare Web Analytics
 	CloudflareInsightsDomain = "https://static.cloudflareinsights.com"
 	// StripeDomain is the domain for Stripe.js SDK
-	StripeDomain = "https://*.stripe.com"
+	StripeDomain            = "https://*.stripe.com"
+	permissionsPolicyHeader = "camera=(), microphone=(), geolocation=()"
+	hstsHeaderValue         = "max-age=31536000; includeSubDomains"
 	// AirwallexStaticDomain 是 Airwallex 生产环境 SDK 脚本域名。
 	AirwallexStaticDomain = "https://static.airwallex.com"
 	// AirwallexCheckoutDomain 是 Airwallex 生产环境收银台元素和 iframe 域名。
@@ -94,6 +96,10 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Permissions-Policy", permissionsPolicyHeader)
+		if isHTTPSRequest(c) {
+			c.Header("Strict-Transport-Security", hstsHeaderValue)
+		}
 		if isAPIRoutePath(c) {
 			c.Next()
 			return
@@ -113,6 +119,16 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		}
 		c.Next()
 	}
+}
+
+func isHTTPSRequest(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if c.Request.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")), "https")
 }
 
 func isAPIRoutePath(c *gin.Context) bool {

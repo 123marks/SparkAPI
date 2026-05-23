@@ -4,8 +4,36 @@ type DataPayloadWrapper = {
   data?: unknown
 }
 
+export type AdminDataImportFileLike = Pick<File, 'name' | 'size'>
+
+export type AdminDataImportFileValidation =
+  | { valid: true; totalBytes: number }
+  | {
+      valid: false
+      reason: 'too_many_files'
+      maxFiles: number
+      totalBytes: number
+    }
+  | {
+      valid: false
+      reason: 'file_too_large'
+      fileName: string
+      fileBytes: number
+      maxBytes: number
+      totalBytes: number
+    }
+  | {
+      valid: false
+      reason: 'total_too_large'
+      totalBytes: number
+      maxBytes: number
+    }
+
 const SUPPORTED_DATA_TYPES = new Set(['sub2api-data', 'sub2api-bundle'])
 const SUPPORTED_DATA_VERSION = 1
+export const ADMIN_DATA_IMPORT_MAX_FILES = 20
+export const ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES = 25 * 1024 * 1024
+export const ADMIN_DATA_IMPORT_MAX_TOTAL_BYTES = 50 * 1024 * 1024
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -63,6 +91,53 @@ export function parseAdminDataImportContent(content: string, sourceName = 'impor
   }
 
   return [unwrapAdminDataPayload(value, sourceName)]
+}
+
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B'
+  }
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex++
+  }
+  const precision = unitIndex === 0 || value >= 10 ? 0 : 1
+  return `${value.toFixed(precision)} ${units[unitIndex]}`
+}
+
+export function getAdminDataImportFileValidation(
+  files: AdminDataImportFileLike[],
+  limits = {
+    maxFiles: ADMIN_DATA_IMPORT_MAX_FILES,
+    maxSingleFileBytes: ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES,
+    maxTotalBytes: ADMIN_DATA_IMPORT_MAX_TOTAL_BYTES
+  }
+): AdminDataImportFileValidation {
+  const totalBytes = files.reduce((sum, file) => sum + Math.max(0, file.size || 0), 0)
+  if (files.length > limits.maxFiles) {
+    return { valid: false, reason: 'too_many_files', maxFiles: limits.maxFiles, totalBytes }
+  }
+
+  const oversizedFile = files.find((file) => file.size > limits.maxSingleFileBytes)
+  if (oversizedFile) {
+    return {
+      valid: false,
+      reason: 'file_too_large',
+      fileName: oversizedFile.name,
+      fileBytes: oversizedFile.size,
+      maxBytes: limits.maxSingleFileBytes,
+      totalBytes
+    }
+  }
+
+  if (totalBytes > limits.maxTotalBytes) {
+    return { valid: false, reason: 'total_too_large', totalBytes, maxBytes: limits.maxTotalBytes }
+  }
+
+  return { valid: true, totalBytes }
 }
 
 function proxyMergeKey(proxy: AdminDataProxy): string {

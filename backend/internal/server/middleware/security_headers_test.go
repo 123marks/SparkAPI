@@ -95,6 +95,35 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 		assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
 		assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
+		assert.Equal(t, permissionsPolicyHeader, w.Header().Get("Permissions-Policy"))
+		assert.Empty(t, w.Header().Get("Strict-Transport-Security"))
+	})
+
+	t.Run("sets_hsts_for_forwarded_https", func(t *testing.T) {
+		cfg := config.CSPConfig{Enabled: false}
+		middleware := SecurityHeaders(cfg, nil)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+		c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+		middleware(c)
+
+		assert.Equal(t, hstsHeaderValue, w.Header().Get("Strict-Transport-Security"))
+	})
+
+	t.Run("sets_hsts_for_direct_https", func(t *testing.T) {
+		cfg := config.CSPConfig{Enabled: false}
+		middleware := SecurityHeaders(cfg, nil)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "https://example.test/", nil)
+
+		middleware(c)
+
+		assert.Equal(t, hstsHeaderValue, w.Header().Get("Strict-Transport-Security"))
 	})
 
 	t.Run("csp_disabled_no_csp_header", func(t *testing.T) {

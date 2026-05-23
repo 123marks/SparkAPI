@@ -48,11 +48,17 @@
             <div class="text-xs text-gray-500 dark:text-dark-400">
               {{ t('admin.accounts.dataImportFileHint') }}
             </div>
+            <div v-if="files.length" class="text-xs text-gray-500 dark:text-dark-400">
+              {{ t('admin.accounts.dataImportSelectedSize', { size: fileTotalSize }) }}
+            </div>
           </div>
           <button type="button" class="btn btn-secondary shrink-0" @click="openFilePicker">
             {{ t('common.chooseFile') }}
           </button>
         </div>
+        <p v-if="fileValidationMessage" class="mt-2 text-xs text-red-600 dark:text-red-400">
+          {{ fileValidationMessage }}
+        </p>
         <input
           ref="fileInput"
           type="file"
@@ -98,7 +104,7 @@
           class="btn btn-primary"
           type="submit"
           form="import-data-form"
-          :disabled="importing"
+          :disabled="importing || !!fileValidationMessage"
         >
           {{ importing ? t('admin.accounts.dataImporting') : t('admin.accounts.dataImportButton') }}
         </button>
@@ -114,7 +120,12 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import { mergeAdminDataPayloads, parseAdminDataImportContent } from '@/utils/dataImport'
+import {
+  formatBytes,
+  getAdminDataImportFileValidation,
+  mergeAdminDataPayloads,
+  parseAdminDataImportContent
+} from '@/utils/dataImport'
 import type { AdminDataImportResult, AdminDataPayload, AdminGroup } from '@/types'
 
 interface Props {
@@ -148,6 +159,27 @@ const fileSummary = computed(() => {
     names: files.value.map((item) => item.name).join(', ')
   })
 })
+const fileValidation = computed(() => getAdminDataImportFileValidation(files.value))
+const fileTotalSize = computed(() => formatBytes(fileValidation.value.totalBytes))
+const fileValidationMessage = computed(() => {
+  const validation = fileValidation.value
+  if (validation.valid) return ''
+  switch (validation.reason) {
+    case 'too_many_files':
+      return t('admin.accounts.dataImportTooManyFiles', { max: validation.maxFiles })
+    case 'file_too_large':
+      return t('admin.accounts.dataImportFileTooLarge', {
+        name: validation.fileName,
+        max: formatBytes(validation.maxBytes)
+      })
+    case 'total_too_large':
+      return t('admin.accounts.dataImportTotalTooLarge', {
+        max: formatBytes(validation.maxBytes)
+      })
+    default:
+      return ''
+  }
+})
 const availableGroups = computed(() => props.groups ?? [])
 
 const errorItems = computed(() => result.value?.errors || [])
@@ -174,6 +206,7 @@ const openFilePicker = () => {
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
   files.value = Array.from(target.files || [])
+  result.value = null
 }
 
 const handleClose = () => {
@@ -215,6 +248,10 @@ const buildImportPayload = (payload: AdminDataPayload): AdminDataPayload => {
 const handleImport = async () => {
   if (files.value.length === 0) {
     appStore.showError(t('admin.accounts.dataImportSelectFile'))
+    return
+  }
+  if (fileValidationMessage.value) {
+    appStore.showError(fileValidationMessage.value)
     return
   }
 
