@@ -8,8 +8,8 @@
       class="h-screen w-full border-0"
       allowfullscreen
     ></iframe>
-    <!-- HTML mode - SECURITY: homeContent is admin-only setting, XSS risk is acceptable -->
-    <div v-else v-html="homeContent"></div>
+    <!-- HTML mode: admin configured content is sanitized before rendering. -->
+    <div v-else v-html="sanitizedHomeContent"></div>
   </div>
 
   <!-- Default Home Page -->
@@ -407,6 +407,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DOMPurify from 'dompurify'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -422,6 +423,7 @@ const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appS
 const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API Gateway Platform')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
+const sanitizedHomeContent = computed(() => DOMPurify.sanitize(homeContent.value))
 
 // Check if homeContent is a URL (for iframe display)
 const isHomeContentUrl = computed(() => {

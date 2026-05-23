@@ -31,7 +31,7 @@ interface IconData {
   paths: string[]
 }
 
-// SVG paths extracted from @lobehub/icons Mono.js files
+// SVG paths are embedded locally so provider icons do not require a runtime icon package.
 const iconData: Record<string, IconData> = {
   claude: {
     color: '#D97706',

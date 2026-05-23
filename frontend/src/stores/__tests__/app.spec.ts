@@ -273,6 +273,26 @@ describe('useAppStore', () => {
       expect(store.publicSettingsLoaded).toBe(true)
     })
 
+    it('normalizes legacy Sub2API branding to SparkAPI', () => {
+      const windowAny = window as any
+      windowAny.__APP_CONFIG__ = {
+        site_name: 'Sub2API',
+        site_logo: '',
+        version: '1.0.129',
+        contact_info: '',
+        api_base_url: '',
+        doc_url: '',
+      }
+
+      const store = useAppStore()
+      const result = store.initFromInjectedConfig()
+
+      expect(result).toBe(true)
+      expect(store.siteName).toBe('SparkAPI')
+      expect(store.cachedPublicSettings?.site_name).toBe('SparkAPI')
+      expect(windowAny.__APP_CONFIG__.site_name).toBe('SparkAPI')
+    })
+
     it('无注入配置时返回 false', () => {
       const store = useAppStore()
       const result = store.initFromInjectedConfig()

@@ -14,6 +14,17 @@ import {
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
 
+const DEFAULT_SITE_NAME = 'SparkAPI'
+const LEGACY_SITE_NAMES = new Set(['Sub2API'])
+
+function normalizeSiteName(value: unknown): string {
+  const name = typeof value === 'string' ? value.trim() : ''
+  if (!name || LEGACY_SITE_NAMES.has(name)) {
+    return DEFAULT_SITE_NAME
+  }
+  return name
+}
+
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
 
@@ -25,7 +36,7 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('SparkAPI')
+  const siteName = ref<string>(DEFAULT_SITE_NAME)
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
@@ -288,16 +299,20 @@ export const useAppStore = defineStore('app', () => {
    * Apply settings to store state (internal helper to avoid code duplication)
    */
   function applySettings(config: PublicSettings): void {
-    if (typeof window !== 'undefined') {
-      window.__APP_CONFIG__ = { ...config }
+    const normalizedConfig = {
+      ...config,
+      site_name: normalizeSiteName(config.site_name)
     }
-    cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'SparkAPI'
-    siteLogo.value = config.site_logo || ''
-    siteVersion.value = config.version || ''
-    contactInfo.value = config.contact_info || ''
-    apiBaseUrl.value = config.api_base_url || ''
-    docUrl.value = config.doc_url || ''
+    if (typeof window !== 'undefined') {
+      window.__APP_CONFIG__ = { ...normalizedConfig }
+    }
+    cachedPublicSettings.value = normalizedConfig
+    siteName.value = normalizedConfig.site_name
+    siteLogo.value = normalizedConfig.site_logo || ''
+    siteVersion.value = normalizedConfig.version || ''
+    contactInfo.value = normalizedConfig.contact_info || ''
+    apiBaseUrl.value = normalizedConfig.api_base_url || ''
+    docUrl.value = normalizedConfig.doc_url || ''
     publicSettingsLoaded.value = true
   }
 
