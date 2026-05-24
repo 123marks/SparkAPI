@@ -394,6 +394,23 @@ export async function bulkUpdate(
   return data
 }
 
+export async function bulkDelete(accountIds: number[]): Promise<{
+  total: number
+  success: number
+  failed: number
+  errors?: Array<{ account_id: number; error: string }>
+}> {
+  const { data } = await apiClient.post<{
+    total: number
+    success: number
+    failed: number
+    errors?: Array<{ account_id: number; error: string }>
+  }>('/admin/accounts/bulk-delete', {
+    account_ids: accountIds
+  })
+  return data
+}
+
 /**
  * Get account today statistics
  * @param id - Account ID
@@ -682,6 +699,7 @@ export const accountsAPI = {
   batchCreate,
   batchUpdateCredentials,
   bulkUpdate,
+  bulkDelete,
   previewFromCrs,
   syncFromCrs,
   exportData,

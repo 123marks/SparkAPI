@@ -1231,7 +1231,25 @@ const toggleSelectAllVisible = (event: Event) => {
   const target = event.target as HTMLInputElement
   toggleVisible(target.checked)
 }
-const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
+const handleBulkDelete = async () => {
+  if (!confirm(t('common.confirm'))) return
+  const accountIds = [...selIds.value]
+  if (accountIds.length === 0) return
+
+  try {
+    const result = await adminAPI.accounts.bulkDelete(accountIds)
+    if (result.failed > 0) {
+      appStore.showError(`Deleted ${result.success}, failed ${result.failed}`)
+    } else {
+      appStore.showSuccess(`Deleted ${result.success} accounts`)
+      clearSelection()
+    }
+    reload()
+  } catch (error) {
+    console.error('Failed to bulk delete accounts:', error)
+    appStore.showError(String(error))
+  }
+}
 const handleBulkResetStatus = async () => {
   if (!confirm(t('common.confirm'))) return
   try {

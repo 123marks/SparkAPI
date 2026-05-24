@@ -49,6 +49,7 @@ type accountRepository struct {
 	// Used to proactively sync account snapshot to cache when status changes,
 	// ensuring sticky sessions can promptly detect unavailable accounts.
 	schedulerCache service.SchedulerCache
+	dashboardCache service.DashboardStatsCache
 }
 
 var schedulerNeutralExtraKeyPrefixes = []string{
@@ -66,14 +67,14 @@ var schedulerNeutralExtraKeys = map[string]struct{}{
 
 // NewAccountRepository 创建账户仓储实例。
 // 这是对外暴露的构造函数，返回接口类型以便于依赖注入。
-func NewAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache service.SchedulerCache) service.AccountRepository {
-	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
+func NewAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache service.SchedulerCache, dashboardCache service.DashboardStatsCache) service.AccountRepository {
+	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache, dashboardCache)
 }
 
 // newAccountRepositoryWithSQL 是内部构造函数，支持依赖注入 SQL 执行器。
 // 这种设计便于单元测试时注入 mock 对象。
-func newAccountRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor, schedulerCache service.SchedulerCache) *accountRepository {
-	return &accountRepository{client: client, sql: sqlq, schedulerCache: schedulerCache}
+func newAccountRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor, schedulerCache service.SchedulerCache, dashboardCache service.DashboardStatsCache) *accountRepository {
+	return &accountRepository{client: client, sql: sqlq, schedulerCache: schedulerCache, dashboardCache: dashboardCache}
 }
 
 func (r *accountRepository) Create(ctx context.Context, account *service.Account) error {
@@ -141,6 +142,7 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &account.ID, nil, buildSchedulerGroupPayload(account.GroupIDs)); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue account create failed: account=%d err=%v", account.ID, err)
 	}
+	r.invalidateDashboardStatsCache(ctx, "account create")
 	return nil
 }
 
@@ -405,6 +407,7 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 	// 普通账号编辑（如 model_mapping / credentials）也需要立即刷新单账号快照，
 	// 否则网关在 outbox worker 延迟或异常时仍可能读到旧配置。
 	r.syncSchedulerAccountSnapshot(ctx, account.ID)
+	r.invalidateDashboardStatsCache(ctx, "account update")
 	return nil
 }
 
@@ -458,6 +461,7 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, buildSchedulerGroupPayload(groupIDs)); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue account delete failed: account=%d err=%v", id, err)
 	}
+	r.invalidateDashboardStatsCache(ctx, "account delete")
 	return nil
 }
 
@@ -736,6 +740,7 @@ func (r *accountRepository) SetError(ctx context.Context, id int64, errorMsg str
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue set error failed: account=%d err=%v", id, err)
 	}
 	r.syncSchedulerAccountSnapshot(ctx, id)
+	r.invalidateDashboardStatsCache(ctx, "account set error")
 	return nil
 }
 
@@ -807,6 +812,15 @@ func (r *accountRepository) syncSchedulerAccountSnapshots(ctx context.Context, a
 	}
 }
 
+func (r *accountRepository) invalidateDashboardStatsCache(ctx context.Context, reason string) {
+	if r == nil || r.dashboardCache == nil {
+		return
+	}
+	if err := r.dashboardCache.DeleteDashboardStats(ctx); err != nil {
+		logger.LegacyPrintf("repository.account", "[Dashboard] invalidate stats cache failed: reason=%s err=%v", reason, err)
+	}
+}
+
 func (r *accountRepository) ClearError(ctx context.Context, id int64) error {
 	_, err := r.client.Account.Update().
 		Where(dbaccount.IDEQ(id)).
@@ -820,6 +834,7 @@ func (r *accountRepository) ClearError(ctx context.Context, id int64) error {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue clear error failed: account=%d err=%v", id, err)
 	}
 	r.syncSchedulerAccountSnapshot(ctx, id)
+	r.invalidateDashboardStatsCache(ctx, "account clear error")
 	return nil
 }
 
@@ -1284,6 +1299,7 @@ func (r *accountRepository) SetSchedulable(ctx context.Context, id int64, schedu
 	if !schedulable {
 		r.syncSchedulerAccountSnapshot(ctx, id)
 	}
+	r.invalidateDashboardStatsCache(ctx, "account schedulable change")
 	return nil
 }
 
@@ -1494,6 +1510,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		if shouldSync {
 			r.syncSchedulerAccountSnapshots(ctx, ids)
 		}
+		r.invalidateDashboardStatsCache(ctx, "account bulk update")
 	}
 	return rows, nil
 }
