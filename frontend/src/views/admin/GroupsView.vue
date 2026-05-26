@@ -100,7 +100,7 @@
             <span
               :class="[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-                value === 'anthropic'
+                value === 'anthropic' || value === 'kiro'
                   ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                   : value === 'openai'
                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -451,36 +451,24 @@
             </span>
           </div>
           <!-- 分组选择下拉 -->
-          <select
-            class="input"
+          <Select
+            :model-value="null"
+            :options="copyAccountsCreateSelectOptions"
+            :placeholder="t('admin.groups.copyAccounts.selectPlaceholder')"
             @change="
-              (e) => {
-                const val = Number((e.target as HTMLSelectElement).value);
+              (val) => {
+                const id = Number(val);
                 if (
-                  val &&
-                  !createForm.copy_accounts_from_group_ids.includes(val)
+                  id &&
+                  !createForm.copy_accounts_from_group_ids.includes(id)
                 ) {
-                  createForm.copy_accounts_from_group_ids.push(val);
+                  createForm.copy_accounts_from_group_ids.push(id);
                 }
-                (e.target as HTMLSelectElement).value = '';
               }
             "
-          >
-            <option value="">
-              {{ t("admin.groups.copyAccounts.selectPlaceholder") }}
-            </option>
-            <option
-              v-for="opt in copyAccountsGroupOptions"
-              :key="opt.value"
-              :value="opt.value"
-              :disabled="
-                createForm.copy_accounts_from_group_ids.includes(opt.value)
-              "
-            >
-              {{ opt.label }}
-            </option>
-          </select>
+          />
           <p class="input-hint">{{ t("admin.groups.copyAccounts.hint") }}</p>
+
         </div>
         <div>
           <label class="input-label">{{
@@ -643,6 +631,37 @@
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
             </div>
+          </div>
+        </div>
+
+        <!-- Kiro 模拟缓存配置 -->
+        <div v-if="createForm.platform === 'kiro'" class="border-t pt-4">
+          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.kiroCache.title") }}
+          </label>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {{ t("admin.groups.kiroCache.description") }}
+          </p>
+          <label class="mb-4 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              v-model="createForm.kiro_cache_emulation_enabled"
+              type="checkbox"
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            {{ t("admin.groups.kiroCache.enabled") }}
+          </label>
+          <div v-if="createForm.kiro_cache_emulation_enabled">
+            <label class="input-label">{{ t("admin.groups.kiroCache.ratio") }}</label>
+            <input
+              v-model.number="createForm.kiro_cache_emulation_ratio"
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              class="input"
+              placeholder="1"
+            />
+            <p class="input-hint">{{ t("admin.groups.kiroCache.ratioHint") }}</p>
           </div>
         </div>
 
@@ -1184,10 +1203,10 @@
           </div>
         </div>
 
-        <!-- 账号过滤控制 (OpenAI/Antigravity/Anthropic/Gemini) -->
+        <!-- 账号过滤控制 (OpenAI/Antigravity/Anthropic/Gemini/Kiro) -->
         <div
           v-if="
-            ['openai', 'antigravity', 'anthropic', 'gemini'].includes(
+            ['openai', 'antigravity', 'anthropic', 'gemini', 'kiro'].includes(
               createForm.platform,
             )
           "
@@ -1633,35 +1652,22 @@
             </span>
           </div>
           <!-- 分组选择下拉 -->
-          <select
-            class="input"
+          <Select
+            :model-value="null"
+            :options="copyAccountsEditSelectOptions"
+            :placeholder="t('admin.groups.copyAccounts.selectPlaceholder')"
             @change="
-              (e) => {
-                const val = Number((e.target as HTMLSelectElement).value);
+              (val) => {
+                const id = Number(val);
                 if (
-                  val &&
-                  !editForm.copy_accounts_from_group_ids.includes(val)
+                  id &&
+                  !editForm.copy_accounts_from_group_ids.includes(id)
                 ) {
-                  editForm.copy_accounts_from_group_ids.push(val);
+                  editForm.copy_accounts_from_group_ids.push(id);
                 }
-                (e.target as HTMLSelectElement).value = '';
               }
             "
-          >
-            <option value="">
-              {{ t("admin.groups.copyAccounts.selectPlaceholder") }}
-            </option>
-            <option
-              v-for="opt in copyAccountsGroupOptionsForEdit"
-              :key="opt.value"
-              :value="opt.value"
-              :disabled="
-                editForm.copy_accounts_from_group_ids.includes(opt.value)
-              "
-            >
-              {{ opt.label }}
-            </option>
-          </select>
+          />
           <p class="input-hint">
             {{ t("admin.groups.copyAccounts.hintEdit") }}
           </p>
@@ -1828,6 +1834,37 @@
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
             </div>
+          </div>
+        </div>
+
+        <!-- Kiro 模拟缓存配置 -->
+        <div v-if="editForm.platform === 'kiro'" class="border-t pt-4">
+          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.kiroCache.title") }}
+          </label>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {{ t("admin.groups.kiroCache.description") }}
+          </p>
+          <label class="mb-4 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              v-model="editForm.kiro_cache_emulation_enabled"
+              type="checkbox"
+              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            {{ t("admin.groups.kiroCache.enabled") }}
+          </label>
+          <div v-if="editForm.kiro_cache_emulation_enabled">
+            <label class="input-label">{{ t("admin.groups.kiroCache.ratio") }}</label>
+            <input
+              v-model.number="editForm.kiro_cache_emulation_ratio"
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              class="input"
+              placeholder="1"
+            />
+            <p class="input-hint">{{ t("admin.groups.kiroCache.ratioHint") }}</p>
           </div>
         </div>
 
@@ -2754,7 +2791,7 @@
                 <span
                   :class="[
                     'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-                    group.platform === 'anthropic'
+                    group.platform === 'anthropic' || group.platform === 'kiro'
                       ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                       : group.platform === 'openai'
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -2923,6 +2960,7 @@ const platformOptions = computed(() => [
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
+  { value: "kiro", label: "Kiro" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -2931,6 +2969,7 @@ const platformFilterOptions = computed(() => [
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
+  { value: "kiro", label: "Kiro" },
 ]);
 
 const editStatusOptions = computed(() => [
@@ -3028,6 +3067,14 @@ const copyAccountsGroupOptions = computed(() => {
   }));
 });
 
+// 创建表单下拉的选项：将已选分组置为 disabled，避免重复添加
+const copyAccountsCreateSelectOptions = computed(() =>
+  copyAccountsGroupOptions.value.map((opt) => ({
+    ...opt,
+    disabled: createForm.copy_accounts_from_group_ids.includes(opt.value),
+  })),
+);
+
 // 复制账号的源分组选项（编辑时）- 仅包含相同平台且有账号的分组，排除自身
 const copyAccountsGroupOptionsForEdit = computed(() => {
   const currentId = editingGroup.value?.id;
@@ -3042,6 +3089,14 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
     label: `${g.name} (${g.account_count || 0} 个账号)`,
   }));
 });
+
+// 编辑表单下拉的选项：将已选分组置为 disabled
+const copyAccountsEditSelectOptions = computed(() =>
+  copyAccountsGroupOptionsForEdit.value.map((opt) => ({
+    ...opt,
+    disabled: editForm.copy_accounts_from_group_ids.includes(opt.value),
+  })),
+);
 
 const groups = ref<AdminGroup[]>([]);
 const loading = ref(false);
@@ -3137,6 +3192,9 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  // Kiro 模拟缓存配置（仅 Kiro 平台）
+  kiro_cache_emulation_enabled: false,
+  kiro_cache_emulation_ratio: 1,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -3423,6 +3481,9 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  // Kiro 模拟缓存配置（仅 Kiro 平台）
+  kiro_cache_emulation_enabled: false,
+  kiro_cache_emulation_ratio: 1,
 });
 
 type ImagePricingFormState = {
@@ -3654,6 +3715,8 @@ const closeCreateModal = () => {
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
+  createForm.kiro_cache_emulation_enabled = false;
+  createForm.kiro_cache_emulation_ratio = 1;
   createModelRoutingRules.value = [];
 };
 
@@ -3731,6 +3794,10 @@ const handleCreateGroup = async () => {
     requestData.image_rate_multiplier = normalizeImageRateMultiplier(
       requestData.image_rate_multiplier,
     );
+    if (requestData.platform !== "kiro") {
+      requestData.kiro_cache_emulation_enabled = false;
+      requestData.kiro_cache_emulation_ratio = 0;
+    }
     await adminAPI.groups.create(requestData);
     appStore.showSuccess(t("admin.groups.groupCreated"));
     closeCreateModal();
@@ -3794,6 +3861,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.kiro_cache_emulation_enabled = group.kiro_cache_emulation_enabled ?? false;
+  editForm.kiro_cache_emulation_ratio = group.kiro_cache_emulation_ratio ?? 1;
   // 加载模型路由规则（异步加载账号名称）
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
     group.model_routing,
@@ -3866,6 +3935,10 @@ const handleUpdateGroup = async () => {
     payload.image_rate_multiplier = normalizeImageRateMultiplier(
       payload.image_rate_multiplier,
     );
+    if (payload.platform !== "kiro") {
+      payload.kiro_cache_emulation_enabled = false;
+      payload.kiro_cache_emulation_ratio = 0;
+    }
     await adminAPI.groups.update(editingGroup.value.id, payload);
     appStore.showSuccess(t("admin.groups.groupUpdated"));
     closeEditModal();
@@ -3956,7 +4029,7 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(createForm);
     }
-    if (!["openai", "antigravity", "anthropic", "gemini"].includes(newVal)) {
+    if (!["openai", "antigravity", "anthropic", "gemini", "kiro"].includes(newVal)) {
       createForm.require_oauth_only = false;
       createForm.require_privacy_set = false;
     }
@@ -3972,7 +4045,7 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(editForm);
     }
-    if (!["openai", "antigravity", "anthropic", "gemini"].includes(newVal)) {
+    if (!["openai", "antigravity", "anthropic", "gemini", "kiro"].includes(newVal)) {
       editForm.require_oauth_only = false;
       editForm.require_privacy_set = false;
     }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
@@ -18,6 +19,32 @@ type APIKeyRateLimitCacheData struct {
 	Window5h int64   `json:"window_5h"` // unix timestamp, 0 = not started
 	Window1d int64   `json:"window_1d"`
 	Window7d int64   `json:"window_7d"`
+}
+
+// UserPlatformQuotaCacheEntry Redis hash 反序列化结果。
+//
+// SchemaVersion 用于向后兼容：
+//   - 0（旧 entry，无 SchemaVersion 字段）→ 视为 cache MISS，强制 refresh
+//   - 1（当前版本）→ 包含 limits 和 window_start，可免 DB 查询
+//
+// limit 字段为 nil 表示"无限额"（DB 中对应列为 NULL）。
+const UserPlatformQuotaCacheSchemaV1 = int64(1)
+
+type UserPlatformQuotaCacheEntry struct {
+	DailyUsageUSD   float64
+	WeeklyUsageUSD  float64
+	MonthlyUsageUSD float64
+	Version         int64
+	SchemaVersion   int64
+
+	// 以下字段仅在 SchemaVersion >= 1 时有效
+	DailyLimitUSD   *float64
+	WeeklyLimitUSD  *float64
+	MonthlyLimitUSD *float64
+
+	DailyWindowStart   *time.Time
+	WeeklyWindowStart  *time.Time
+	MonthlyWindowStart *time.Time
 }
 
 // BillingCache defines cache operations for billing service
@@ -39,6 +66,13 @@ type BillingCache interface {
 	SetAPIKeyRateLimit(ctx context.Context, keyID int64, data *APIKeyRateLimitCacheData) error
 	UpdateAPIKeyRateLimitUsage(ctx context.Context, keyID int64, cost float64) error
 	InvalidateAPIKeyRateLimit(ctx context.Context, keyID int64) error
+
+	// user × platform quota 缓存
+	GetUserPlatformQuotaCache(ctx context.Context, userID int64, platform string) (*UserPlatformQuotaCacheEntry, bool, error)
+	SetUserPlatformQuotaCache(ctx context.Context, userID int64, platform string, entry *UserPlatformQuotaCacheEntry, ttl time.Duration) error
+	DeleteUserPlatformQuotaCache(ctx context.Context, userID int64, platform string) error
+	// IncrUserPlatformQuotaUsageCache 在缓存命中时累加用量；缓存未命中（key 不存在）静默返回 nil。
+	IncrUserPlatformQuotaUsageCache(ctx context.Context, userID int64, platform string, cost float64, ttl time.Duration) error
 }
 
 // ModelPricing 模型价格配置（per-token价格，与LiteLLM格式一致）
@@ -198,6 +232,13 @@ func (s *BillingService) initFallbackPricing() {
 	// Claude 4.7 Opus (暂与4.6同价，待官方定价更新)
 	s.fallbackPrices["claude-opus-4.7"] = s.fallbackPrices["claude-opus-4.6"]
 
+	// Claude Sonnet 4.5/4.6 当前与 Sonnet 4 同价
+	s.fallbackPrices["claude-sonnet-4.5"] = s.fallbackPrices["claude-sonnet-4"]
+	s.fallbackPrices["claude-sonnet-4.6"] = s.fallbackPrices["claude-sonnet-4.5"]
+
+	// Claude Haiku 4.5 当前与 Claude 3.5 Haiku 同价
+	s.fallbackPrices["claude-haiku-4.5"] = s.fallbackPrices["claude-3-5-haiku"]
+
 	// Gemini 3.1 Pro
 	s.fallbackPrices["gemini-3.1-pro"] = &ModelPricing{
 		InputPricePerToken:         2e-6,   // $2 per MTok
@@ -278,13 +319,21 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 		return s.fallbackPrices["claude-3-opus"]
 	}
 	if strings.Contains(modelLower, "sonnet") {
-		if strings.Contains(modelLower, "4") && !strings.Contains(modelLower, "3") {
+		switch {
+		case strings.Contains(modelLower, "4.6") || strings.Contains(modelLower, "4-6"):
+			return s.fallbackPrices["claude-sonnet-4.6"]
+		case strings.Contains(modelLower, "4.5") || strings.Contains(modelLower, "4-5"):
+			return s.fallbackPrices["claude-sonnet-4.5"]
+		case strings.Contains(modelLower, "4") && !strings.Contains(modelLower, "3"):
 			return s.fallbackPrices["claude-sonnet-4"]
 		}
 		return s.fallbackPrices["claude-3-5-sonnet"]
 	}
 	if strings.Contains(modelLower, "haiku") {
-		if strings.Contains(modelLower, "3-5") || strings.Contains(modelLower, "3.5") {
+		switch {
+		case strings.Contains(modelLower, "4.5") || strings.Contains(modelLower, "4-5"):
+			return s.fallbackPrices["claude-haiku-4.5"]
+		case strings.Contains(modelLower, "3-5") || strings.Contains(modelLower, "3.5"):
 			return s.fallbackPrices["claude-3-5-haiku"]
 		}
 		return s.fallbackPrices["claude-3-haiku"]
