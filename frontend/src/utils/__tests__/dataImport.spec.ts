@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ADMIN_DATA_IMPORT_MAX_FILES,
   ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES,
   ADMIN_DATA_IMPORT_MAX_TOTAL_BYTES,
   formatBytes,
@@ -96,15 +95,15 @@ describe('dataImport utilities', () => {
     )
   })
 
-  it('validates import file count and size limits before reading files', () => {
+  it('allows many small import files and validates size limits before reading files', () => {
     expect(
       getAdminDataImportFileValidation(
-        Array.from({ length: ADMIN_DATA_IMPORT_MAX_FILES + 1 }, (_, index) => ({
+        Array.from({ length: 21 }, (_, index) => ({
           name: `backup-${index}.json`,
           size: 1
         }))
       )
-    ).toMatchObject({ valid: false, reason: 'too_many_files' })
+    ).toMatchObject({ valid: true })
 
     expect(
       getAdminDataImportFileValidation([

@@ -10,12 +10,6 @@ export type AdminDataImportFileValidation =
   | { valid: true; totalBytes: number }
   | {
       valid: false
-      reason: 'too_many_files'
-      maxFiles: number
-      totalBytes: number
-    }
-  | {
-      valid: false
       reason: 'file_too_large'
       fileName: string
       fileBytes: number
@@ -31,7 +25,6 @@ export type AdminDataImportFileValidation =
 
 const SUPPORTED_DATA_TYPES = new Set(['sub2api-data', 'sub2api-bundle'])
 const SUPPORTED_DATA_VERSION = 1
-export const ADMIN_DATA_IMPORT_MAX_FILES = 20
 export const ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES = 25 * 1024 * 1024
 export const ADMIN_DATA_IMPORT_MAX_TOTAL_BYTES = 50 * 1024 * 1024
 
@@ -83,7 +76,7 @@ export function parseAdminDataImportContent(content: string, sourceName = 'impor
     value = JSON.parse(content)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${sourceName}: invalid JSON (${message})`)
+    throw new SyntaxError(`${sourceName}: invalid JSON (${message})`)
   }
 
   if (Array.isArray(value)) {
@@ -111,15 +104,11 @@ export function formatBytes(bytes: number): string {
 export function getAdminDataImportFileValidation(
   files: AdminDataImportFileLike[],
   limits = {
-    maxFiles: ADMIN_DATA_IMPORT_MAX_FILES,
     maxSingleFileBytes: ADMIN_DATA_IMPORT_MAX_SINGLE_FILE_BYTES,
     maxTotalBytes: ADMIN_DATA_IMPORT_MAX_TOTAL_BYTES
   }
 ): AdminDataImportFileValidation {
   const totalBytes = files.reduce((sum, file) => sum + Math.max(0, file.size || 0), 0)
-  if (files.length > limits.maxFiles) {
-    return { valid: false, reason: 'too_many_files', maxFiles: limits.maxFiles, totalBytes }
-  }
 
   const oversizedFile = files.find((file) => file.size > limits.maxSingleFileBytes)
   if (oversizedFile) {

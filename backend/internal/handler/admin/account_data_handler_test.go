@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -274,4 +275,39 @@ func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 	require.Len(t, adminSvc.createdProxies, 0)
 	require.Len(t, adminSvc.createdAccounts, 1)
 	require.True(t, adminSvc.createdAccounts[0].SkipDefaultGroupBind)
+}
+
+func TestImportDataCreatesEveryAccountInPayload(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+
+	accounts := make([]map[string]any, 0, 21)
+	for i := 1; i <= 21; i++ {
+		accounts = append(accounts, map[string]any{
+			"name":        "acc-" + strconv.Itoa(i),
+			"platform":    service.PlatformOpenAI,
+			"type":        service.AccountTypeOAuth,
+			"credentials": map[string]any{"token": "x"},
+			"concurrency": 1,
+			"priority":    50,
+		})
+	}
+
+	dataPayload := map[string]any{
+		"data": map[string]any{
+			"type":     dataType,
+			"version":  dataVersion,
+			"proxies":  []map[string]any{},
+			"accounts": accounts,
+		},
+	}
+
+	body, _ := json.Marshal(dataPayload)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	require.Len(t, adminSvc.createdAccounts, 21)
+	require.Equal(t, "acc-21", adminSvc.createdAccounts[20].Name)
 }

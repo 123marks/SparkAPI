@@ -141,8 +141,6 @@ const fileValidationMessage = computed(() => {
   const validation = fileValidation.value
   if (validation.valid) return ''
   switch (validation.reason) {
-    case 'too_many_files':
-      return t('admin.proxies.dataImportTooManyFiles', { max: validation.maxFiles })
     case 'file_too_large':
       return t('admin.proxies.dataImportFileTooLarge', {
         name: validation.fileName,

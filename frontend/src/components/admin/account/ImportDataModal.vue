@@ -165,8 +165,6 @@ const fileValidationMessage = computed(() => {
   const validation = fileValidation.value
   if (validation.valid) return ''
   switch (validation.reason) {
-    case 'too_many_files':
-      return t('admin.accounts.dataImportTooManyFiles', { max: validation.maxFiles })
     case 'file_too_large':
       return t('admin.accounts.dataImportFileTooLarge', {
         name: validation.fileName,
