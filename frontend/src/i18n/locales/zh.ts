@@ -10,6 +10,10 @@ export default {
     login: '登录',
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
+    chatConsole: {
+      title: '在线对话',
+      description: '用你的 SparkAPI 密钥直接试聊，也可以把文本文件作为上下文一起分析。'
+    },
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
     heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
@@ -342,6 +346,48 @@ export default {
         withSuffix: '{time} 后解除'
       }
     }
+  },
+
+  chatConsole: {
+    title: 'SparkAPI 对话台',
+    description: '通过你的网关密钥发起真实请求，支持把文本文件作为上下文一起分析。',
+    apiKey: '网关 API Key',
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyHint: '只保存在当前浏览器会话中。请使用普通 SparkAPI Key，不要填管理密码。',
+    model: '模型',
+    temperature: '温度',
+    mode: '模式',
+    modes: {
+      ops: '运维排查',
+      patch: '补丁规划',
+      security: '安全审查',
+      ux: '体验优化'
+    },
+    projectContext: '上下文',
+    projectContextPlaceholder: '补充当前问题、部署路径、账号池、代理或文件背景。',
+    files: '文件上下文',
+    chooseFiles: '选择文件',
+    dropFiles: '拖入文件，或点击选择',
+    fileHint: '最多 {maxFiles} 个文本文件，单个读取前 {maxSize}。',
+    removeFile: '移除文件',
+    truncated: '已截断',
+    tooManyFiles: '最多只能附加 {max} 个文件',
+    fileSelectionCapped: '已按最多 {max} 个文件处理，多余文件已跳过',
+    emptyFileSkipped: '文件 {name} 没有可读取文本，已跳过',
+    fileReadFailed: '读取文件 {name} 失败',
+    safetyNote: '文件内容只会随本次对话发送给网关，不会在浏览器外额外保存；发送前请检查是否包含敏感密钥。',
+    reset: '重置',
+    send: '发送',
+    sending: '发送中...',
+    you: '你',
+    assistant: '助手',
+    emptyTitle: '开始一次真实对话',
+    emptyDescription: '输入问题，或附加日志、配置、JSON、Markdown 等文本文件让模型一起分析。',
+    promptPlaceholder: '输入问题，或只附加文件后让模型总结、排查、改写。',
+    submitHint: 'Ctrl/Command + Enter 发送',
+    attachedCount: '已附加 {count} 个文件',
+    defaultFileQuestion: '请分析我附加的文件内容，指出关键信息、风险和下一步建议。',
+    sendFailed: '发送消息失败'
   },
 
   // Navigation

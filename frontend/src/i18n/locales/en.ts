@@ -10,6 +10,10 @@ export default {
     login: 'Login',
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
+    chatConsole: {
+      title: 'Live Chat',
+      description: 'Chat through your SparkAPI key and attach text files as context.'
+    },
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
@@ -342,6 +346,48 @@ export default {
         withSuffix: '{time} to lift'
       }
     }
+  },
+
+  chatConsole: {
+    title: 'SparkAPI Chat Console',
+    description: 'Send real requests through your gateway key and attach text files as context.',
+    apiKey: 'Gateway API Key',
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyHint: 'Stored only in this browser session. Use a normal SparkAPI key, not the admin password.',
+    model: 'Model',
+    temperature: 'Temperature',
+    mode: 'Mode',
+    modes: {
+      ops: 'Operations',
+      patch: 'Patch Plan',
+      security: 'Security',
+      ux: 'UX'
+    },
+    projectContext: 'Context',
+    projectContextPlaceholder: 'Add current issue, deployment path, account pool, proxy, or file background.',
+    files: 'File Context',
+    chooseFiles: 'Choose Files',
+    dropFiles: 'Drop files here, or choose them',
+    fileHint: 'Up to {maxFiles} text files. Reads the first {maxSize} per file.',
+    removeFile: 'Remove file',
+    truncated: 'truncated',
+    tooManyFiles: 'You can attach at most {max} files',
+    fileSelectionCapped: 'Only the first {max} files were attached; extra files were skipped',
+    emptyFileSkipped: 'File {name} has no readable text and was skipped',
+    fileReadFailed: 'Failed to read file {name}',
+    safetyNote: 'File content is only sent with this chat request through your gateway. Check for sensitive keys before sending.',
+    reset: 'Reset',
+    send: 'Send',
+    sending: 'Sending...',
+    you: 'You',
+    assistant: 'Assistant',
+    emptyTitle: 'Start a real conversation',
+    emptyDescription: 'Ask a question, or attach logs, config, JSON, Markdown, or other text files for analysis.',
+    promptPlaceholder: 'Ask a question, or attach files and ask for a summary, diagnosis, or rewrite.',
+    submitHint: 'Ctrl/Command + Enter sends',
+    attachedCount: '{count} file(s) attached',
+    defaultFileQuestion: 'Please analyze the attached file content, call out key facts, risks, and next steps.',
+    sendFailed: 'Failed to send message'
   },
 
   // Navigation
