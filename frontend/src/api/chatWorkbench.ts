@@ -5,6 +5,7 @@ export interface ChatWorkbenchMessage {
 
 export interface ChatWorkbenchRequest {
   apiKey: string
+  baseUrl?: string
   model: string
   messages: ChatWorkbenchMessage[]
   temperature?: number
@@ -49,7 +50,8 @@ function normalizeAssistantContent(content: unknown): string {
 }
 
 export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): Promise<ChatWorkbenchResponse> {
-  const response = await fetch('/v1/chat/completions', {
+  const requestUrl = request.baseUrl?.trim() || '/v1/chat/completions'
+  const response = await fetch(requestUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
