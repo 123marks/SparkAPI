@@ -363,6 +363,7 @@ export default {
     availableChannels: '可用渠道',
     subscriptions: '订阅管理',
     accounts: '账号管理',
+    chatWorkbench: 'AI 聊天',
     proxies: 'IP管理',
     redeemCodes: '兑换码',
     ops: '运维监控',
@@ -1775,6 +1776,36 @@ export default {
         availableQuota: '可提余额',
         historyQuota: '历史返利'
       }
+    },
+
+    chatWorkbench: {
+      title: 'AI 聊天工作台',
+      description: '通过你自己的 SparkAPI 网关密钥，辅助排查运维问题、规划补丁、安全检查和管理台体验优化。',
+      apiKey: '网关 API Key',
+      apiKeyPlaceholder: 'sk-...',
+      apiKeyHint: '只保存在当前浏览器会话中。请使用普通 SparkAPI Key，不要填管理密码。',
+      model: '模型',
+      temperature: '温度',
+      mode: '模式',
+      modes: {
+        ops: '运维排查',
+        patch: '补丁规划',
+        security: '安全审查',
+        ux: '体验优化'
+      },
+      projectContext: '项目上下文',
+      projectContextPlaceholder: '补充当前 bug、部署路径、账号池或代理背景。',
+      safetyNote: '这个工作台不会直接改文件或执行命令。输出只作为建议，落地前仍需审核。',
+      reset: '重置',
+      send: '发送',
+      sending: '发送中...',
+      you: '你',
+      assistant: '助手',
+      emptyTitle: '从一个具体 SparkAPI 问题开始',
+      emptyDescription: '适合排查导入失败、规划账号池改造、检查代理策略，或设计更安全的管理流程。',
+      promptPlaceholder: '例如：我选择了 100 个 Codex JSON 文件，但只导入了 20 个账号，帮我判断是前端、后端还是部署缓存。',
+      submitHint: 'Ctrl/Command + Enter 发送',
+      sendFailed: '发送消息失败'
     },
 
     // Users Management
@@ -3860,6 +3891,9 @@ export default {
           codexSessionInputLabel: 'Codex JSON 或 accessToken',
           codexSessionPlaceholder: '支持多行，每行一个 token 或 JSON',
           codexSessionHint: 'sessionToken 不会作为 refresh_token 保存；未包含 refresh_token 时会按 accessToken 过期时间设置账号过期，无法解析且第一步未设置过期时间时会拒绝导入。',
+          codexSessionFileSelect: '选择 Codex JSON 或 token 文件',
+          codexSessionFileHint: '可一次选择多个 JSON/TXT 文件，每个文件会独立解析。',
+          codexSessionFilesSelected: '已选择 {count} 个文件：{names}',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请输入 Codex JSON 或 accessToken',
           codexSessionImportFailed: 'Codex 账号导入失败',

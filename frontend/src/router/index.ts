@@ -489,6 +489,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/chat-workbench',
+    name: 'AdminChatWorkbench',
+    component: () => import('@/views/admin/ChatWorkbenchView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'AI Chat Workbench',
+      titleKey: 'admin.chatWorkbench.title',
+      descriptionKey: 'admin.chatWorkbench.description'
+    }
+  },
+  {
     path: '/admin/announcements',
     name: 'AdminAnnouncements',
     component: () => import('@/views/admin/AnnouncementsView.vue'),

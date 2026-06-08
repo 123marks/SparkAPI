@@ -83,6 +83,29 @@ func TestParseCodexSessionImportEntriesFallsBackToLineModeForMixedJSONAndToken(t
 	}
 }
 
+func TestParseCodexSessionImportEntriesConsumesAllContents(t *testing.T) {
+	contents := make([]string, 100)
+	for i := range contents {
+		contents[i] = fmt.Sprintf("raw-access-token-%03d", i+1)
+	}
+
+	entries, err := parseCodexSessionImportEntries(CodexSessionImportRequest{Contents: contents})
+	if err != nil {
+		t.Fatalf("parseCodexSessionImportEntries error = %v", err)
+	}
+	if len(entries) != len(contents) {
+		t.Fatalf("len(entries) = %d, want %d", len(entries), len(contents))
+	}
+
+	last, err := normalizeCodexImportEntry(entries[len(entries)-1])
+	if err != nil {
+		t.Fatalf("normalize last token error = %v", err)
+	}
+	if last.Credentials["access_token"] != "raw-access-token-100" {
+		t.Fatalf("last access_token = %v, want raw-access-token-100", last.Credentials["access_token"])
+	}
+}
+
 func TestNormalizeCodexSessionJSONExtractsCredentialsAndIgnoresSessionToken(t *testing.T) {
 	accessToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
 		"email": "claim@example.com",

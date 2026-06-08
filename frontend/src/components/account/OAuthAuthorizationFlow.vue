@@ -213,6 +213,30 @@
               </p>
             </div>
 
+            <div class="mb-4 rounded-lg border border-dashed border-blue-200 bg-blue-50/60 p-3 dark:border-blue-800 dark:bg-blue-950/20">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-medium text-blue-900 dark:text-blue-100" :title="codexSessionFileSummary">
+                    {{ codexSessionFileSummary || t('admin.accounts.oauth.openai.codexSessionFileSelect') }}
+                  </div>
+                  <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                    {{ t('admin.accounts.oauth.openai.codexSessionFileHint') }}
+                  </p>
+                </div>
+                <button type="button" class="btn btn-secondary shrink-0" :disabled="loading" @click="openCodexSessionFilePicker">
+                  {{ t('common.chooseFile') }}
+                </button>
+              </div>
+              <input
+                ref="codexSessionFileInput"
+                type="file"
+                class="hidden"
+                accept="application/json,.json,.txt,.log"
+                multiple
+                @change="handleCodexSessionFileChange"
+              />
+            </div>
+
             <div
               v-if="error"
               class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
@@ -225,7 +249,7 @@
             <button
               type="button"
               class="btn btn-primary w-full"
-              :disabled="loading || !codexSessionInput.trim()"
+              :disabled="loading || !hasCodexSessionImportContent"
               @click="handleImportCodexSession"
             >
               <svg
@@ -683,7 +707,7 @@ const emit = defineEmits<{
   'validate-mobile-refresh-token': [refreshToken: string]
   'validate-session-token': [sessionToken: string]
   'import-access-token': [accessToken: string]
-  'import-codex-session': [content: string]
+  'import-codex-session': [contents: string[]]
   'update:inputMethod': [method: AuthInputMethod]
 }>()
 
@@ -725,6 +749,8 @@ const sessionKeyInput = ref('')
 const refreshTokenInput = ref('')
 const sessionTokenInput = ref('')
 const codexSessionInput = ref('')
+const codexSessionFileInput = ref<HTMLInputElement | null>(null)
+const codexSessionFiles = ref<File[]>([])
 const showHelpDialog = ref(false)
 const oauthState = ref('')
 const oauthCallbackPath = ref('')
@@ -762,6 +788,17 @@ const parsedCodexSessionCount = computed(() => {
     .map((item) => item.trim())
     .filter((item) => item).length
 })
+const codexSessionFileSummary = computed(() => {
+  if (codexSessionFiles.value.length === 0) return ''
+  if (codexSessionFiles.value.length === 1) return codexSessionFiles.value[0].name
+  return t('admin.accounts.oauth.openai.codexSessionFilesSelected', {
+    count: codexSessionFiles.value.length,
+    names: codexSessionFiles.value.map((file) => file.name).join(', ')
+  })
+})
+const hasCodexSessionImportContent = computed(() => (
+  codexSessionInput.value.trim() !== '' || codexSessionFiles.value.length > 0
+))
 
 // Watchers
 watch(inputMethod, (newVal) => {
@@ -844,9 +881,37 @@ const handleValidateRefreshToken = () => {
   }
 }
 
-const handleImportCodexSession = () => {
+const openCodexSessionFilePicker = () => {
+  codexSessionFileInput.value?.click()
+}
+
+const handleCodexSessionFileChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  codexSessionFiles.value = Array.from(input.files || [])
+}
+
+const readCodexSessionFiles = async (): Promise<string[]> => {
+  const contents: string[] = []
+  for (const file of codexSessionFiles.value) {
+    const content = await file.text()
+    if (content.trim()) {
+      contents.push(content)
+    }
+  }
+  return contents
+}
+
+const handleImportCodexSession = async () => {
+  if (!hasCodexSessionImportContent.value) {
+    return
+  }
+  const chunks: string[] = []
   if (codexSessionInput.value.trim()) {
-    emit('import-codex-session', codexSessionInput.value.trim())
+    chunks.push(codexSessionInput.value.trim())
+  }
+  chunks.push(...await readCodexSessionFiles())
+  if (chunks.length > 0) {
+    emit('import-codex-session', chunks)
   }
 }
 
@@ -872,6 +937,10 @@ defineExpose({
     refreshTokenInput.value = ''
     sessionTokenInput.value = ''
     codexSessionInput.value = ''
+    codexSessionFiles.value = []
+    if (codexSessionFileInput.value) {
+      codexSessionFileInput.value.value = ''
+    }
     inputMethod.value = 'manual'
     showHelpDialog.value = false
   }

@@ -363,6 +363,7 @@ export default {
     availableChannels: 'Available Channels',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
+    chatWorkbench: 'AI Chat',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
@@ -1754,6 +1755,36 @@ export default {
         availableQuota: 'Available Quota',
         historyQuota: 'Historical Rebate'
       }
+    },
+
+    chatWorkbench: {
+      title: 'AI Chat Workbench',
+      description: 'Ask SparkAPI through your own gateway key for operations, patch planning, security checks, and UX decisions.',
+      apiKey: 'Gateway API Key',
+      apiKeyPlaceholder: 'sk-...',
+      apiKeyHint: 'Stored only in this browser session. Use a normal SparkAPI key, not the admin password.',
+      model: 'Model',
+      temperature: 'Temperature',
+      mode: 'Mode',
+      modes: {
+        ops: 'Operations',
+        patch: 'Patch Plan',
+        security: 'Security',
+        ux: 'UX'
+      },
+      projectContext: 'Project Context',
+      projectContextPlaceholder: 'Add current bug, deployment path, or account-pool context.',
+      safetyNote: 'This workbench cannot edit files or run commands. Treat output as advice and review changes before applying them.',
+      reset: 'Reset',
+      send: 'Send',
+      sending: 'Sending...',
+      you: 'You',
+      assistant: 'Assistant',
+      emptyTitle: 'Start with a concrete SparkAPI question',
+      emptyDescription: 'Use it to inspect import failures, plan account-pool changes, review proxy strategy, or draft safer admin workflows.',
+      promptPlaceholder: 'Example: I selected 100 Codex JSON files but only 20 accounts were imported. Help me identify whether this is frontend, backend, or deployment caching.',
+      submitHint: 'Ctrl/Command + Enter sends',
+      sendFailed: 'Failed to send message'
     },
 
     // Users
@@ -3712,7 +3743,10 @@ export default {
           codexSessionInputLabel: 'Codex JSON or accessToken',
           codexSessionPlaceholder: 'Multiple lines supported, one token or JSON per line',
           codexSessionHint: 'sessionToken will not be saved as refresh_token. Without refresh_token, the account expires with the accessToken expiry; import is rejected if the expiry cannot be parsed and step 1 has no expiration.',
-          codexSessionImportAndCreate: 'Import & Create Account',
+          codexSessionFileSelect: 'Select Codex JSON or token files',
+          codexSessionFileHint: 'You can select multiple JSON/TXT files; each file is parsed independently.',
+          codexSessionFilesSelected: '{count} files selected: {names}',
+          codexSessionImportAndCreate: 'Import & Create Accounts',
           codexSessionEmpty: 'Please enter Codex JSON or accessToken',
           codexSessionImportFailed: 'Failed to import Codex account',
           codexSessionImportSuccess: 'Import completed: created {created}, updated {updated}, skipped {skipped}',

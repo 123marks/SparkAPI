@@ -1,0 +1,6 @@
+FROM sub2api-whw:latest
+
+COPY --chown=sub2api:sub2api sub2api-linux-amd64 /app/sub2api
+COPY --chown=sub2api:sub2api backend/resources /app/resources
+
+RUN chmod +x /app/sub2api
