@@ -173,4 +173,38 @@ describe('SparkChatConsole', () => {
     expect(wrapper.text()).toContain('chatConsole.apiKeyHint')
     expect(wrapper.text()).not.toContain('chatConsole.savedKeysUnavailable')
   })
+
+  it('adds dropped text files to the request context', async () => {
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'drop_file_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+    const file = new File(['proxy=127.0.0.1:7890'], 'proxy-config.txt', { type: 'text/plain' })
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockResolvedValue('proxy=127.0.0.1:7890')
+    })
+
+    await wrapper.trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('input[type="password"]').setValue('sk-drop')
+    await wrapper.findAll('textarea').at(-1)!.setValue('check attached file')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const request = sendChatWorkbenchMessageMock.mock.calls[0][0]
+    expect(request.messages[0].content).toContain('File 1: proxy-config.txt')
+    expect(request.messages[0].content).toContain('proxy=127.0.0.1:7890')
+  })
 })
