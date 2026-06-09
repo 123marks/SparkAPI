@@ -18,6 +18,7 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const errorMessage = ref('')
+const availabilityErrorMessage = ref('')
 const concurrency = ref<OpsConcurrencyStatsResponse | null>(null)
 const availability = ref<OpsAccountAvailabilityStatsResponse | null>(null)
 const userConcurrency = ref<OpsUserConcurrencyStatsResponse | null>(null)
@@ -262,6 +263,7 @@ const displayTitle = computed(() => {
 async function loadData() {
   loading.value = true
   errorMessage.value = ''
+  availabilityErrorMessage.value = ''
   try {
     if (showByUser.value) {
       // 用户视图模式只加载用户并发数据
@@ -269,12 +271,27 @@ async function loadData() {
       userConcurrency.value = userData
     } else {
       // 常规模式加载账号/平台/分组数据
-      const [concData, availData] = await Promise.all([
+      const [concResult, availResult] = await Promise.allSettled([
         opsAPI.getConcurrencyStats(props.platformFilter, props.groupIdFilter),
         opsAPI.getAccountAvailabilityStats(props.platformFilter, props.groupIdFilter)
       ])
-      concurrency.value = concData
-      availability.value = availData
+      if (concResult.status === 'fulfilled') {
+        concurrency.value = concResult.value
+      } else {
+        throw concResult.reason
+      }
+
+      if (availResult.status === 'fulfilled') {
+        availability.value = availResult.value
+      } else {
+        availability.value = {
+          enabled: true,
+          platform: {},
+          group: {},
+          account: {}
+        }
+        availabilityErrorMessage.value = availResult.reason?.response?.data?.detail || t('admin.ops.concurrency.availabilityPartialFailed')
+      }
     }
   } catch (err: any) {
     console.error('[OpsConcurrencyCard] Failed to load data', err)
@@ -381,6 +398,12 @@ watch(
     <!-- 错误提示 -->
     <div v-if="errorMessage" class="mb-3 shrink-0 rounded-xl bg-red-50 p-2.5 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
       {{ errorMessage }}
+    </div>
+    <div
+      v-if="availabilityErrorMessage && !errorMessage"
+      class="mb-3 shrink-0 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-300"
+    >
+      {{ availabilityErrorMessage }}
     </div>
 
     <!-- 禁用状态 -->

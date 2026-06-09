@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { sendChatWorkbenchMessage } from '../chatWorkbench'
+import { ChatWorkbenchError, sendChatWorkbenchMessage } from '../chatWorkbench'
 
 describe('sendChatWorkbenchMessage', () => {
   const originalFetch = global.fetch
@@ -33,5 +33,30 @@ describe('sendChatWorkbenchMessage', () => {
         })
       })
     )
+  })
+
+  it('throws a structured upstream diagnostic for gateway 502 failures', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: vi.fn().mockResolvedValue({
+        error: {
+          message: 'upstream request failed: connect: connection refused'
+        }
+      })
+    } as any)
+
+    await expect(sendChatWorkbenchMessage({
+      apiKey: 'sk-test',
+      baseUrl: '/v1/chat/completions',
+      model: 'gpt-5.5',
+      messages: [{ role: 'user', content: 'ping' }]
+    })).rejects.toMatchObject({
+      name: 'ChatWorkbenchError',
+      status: 502,
+      endpoint: '/v1/chat/completions',
+      model: 'gpt-5.5',
+      upstreamMessage: 'upstream request failed: connect: connection refused'
+    } satisfies Partial<ChatWorkbenchError>)
   })
 })

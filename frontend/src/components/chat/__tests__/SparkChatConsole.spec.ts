@@ -207,4 +207,66 @@ describe('SparkChatConsole', () => {
     expect(request.messages[0].content).toContain('File 1: proxy-config.txt')
     expect(request.messages[0].content).toContain('proxy=127.0.0.1:7890')
   })
+
+  it('renders upstream gateway failures in the conversation stream', async () => {
+    const error = new Error('upstream request failed: connect: connection refused') as Error & {
+      status: number
+      endpoint: string
+      model: string
+      upstreamMessage: string
+    }
+    error.name = 'ChatWorkbenchError'
+    error.status = 502
+    error.endpoint = '/v1/chat/completions'
+    error.model = 'gpt-5.5'
+    error.upstreamMessage = 'upstream request failed: connect: connection refused'
+    sendChatWorkbenchMessageMock.mockRejectedValue(error)
+
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'gateway_error_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.get('input[type="password"]').setValue('sk-error')
+    await wrapper.findAll('textarea').at(-1)!.setValue('hello')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('/v1/chat/completions')
+    expect(wrapper.text()).toContain('gpt-5.5')
+    expect(wrapper.text()).toContain('connection refused')
+    expect(wrapper.text()).toContain('chatConsole.gatewayErrorAdvice')
+  })
+
+  it('adds selected tool capabilities to the system prompt', async () => {
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'tool_context_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.get('[data-test="tool-search-input"]').setValue('mcp')
+    await wrapper.get('[data-test="tool-toggle-mcp-catalog"]').trigger('click')
+    await wrapper.get('input[type="password"]').setValue('sk-tool')
+    await wrapper.findAll('textarea').at(-1)!.setValue('how should I use tools?')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const request = sendChatWorkbenchMessageMock.mock.calls[0][0]
+    expect(request.messages[0].content).toContain('MCP connector catalog')
+    expect(request.messages[0].content).toContain('Selected SparkAPI workbench tools')
+  })
 })

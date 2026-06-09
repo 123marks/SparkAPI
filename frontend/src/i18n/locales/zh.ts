@@ -398,7 +398,38 @@ export default {
     submitHint: 'Ctrl/Command + Enter 发送',
     attachedCount: '已附加 {count} 个文件',
     defaultFileQuestion: '请分析我附加的文件内容，指出关键信息、风险和下一步建议。',
-    sendFailed: '发送消息失败'
+    sendFailed: '发送消息失败',
+    gatewayError: '网关错误',
+    gatewayErrorStatus: '状态码',
+    gatewayErrorEndpoint: '请求端点',
+    gatewayErrorModel: '模型',
+    gatewayErrorCause: '上游原因',
+    gatewayErrorAdvice: '建议检查：账号池是否可用、代理是否连通、模型是否路由到正确账号、上游站点是否拒绝连接。优先在账号测试和运维监控里确认，不要反复重试同一个故障账号。',
+    tools: {
+      title: '能力目录',
+      searchPlaceholder: '搜索 skill、MCP、诊断能力',
+      hint: '选中的能力会作为系统上下文发送；当前不会在浏览器里直接执行服务器命令。',
+      status: {
+        ready: '可用',
+        planned: '需桥接'
+      },
+      gatewayDiagnostics: {
+        name: '网关诊断',
+        description: '让助手按端点、模型、账号池、代理和上游响应链路排查。'
+      },
+      skillSearch: {
+        name: 'Skill 检索',
+        description: '为当前任务匹配合适的本地 agent skill，并给出安全调用步骤。'
+      },
+      mcpCatalog: {
+        name: 'MCP 连接器目录',
+        description: '规划可审计的 MCP 调用边界；真实调用需要后端白名单桥接。'
+      },
+      patchReview: {
+        name: '补丁审查',
+        description: '按最小 diff、回归测试、验证命令和回滚路径组织修改建议。'
+      }
+    }
   },
 
   // Navigation
@@ -5559,7 +5590,8 @@ export default {
         queued: '队列 {count}',
         rateLimited: '限流 {count}',
         errorAccounts: '异常 {count}',
-        loadFailed: '加载并发数据失败'
+        loadFailed: '加载并发数据失败',
+        availabilityPartialFailed: '账号可用性数据暂时不可用，已保留并发/排队数据。'
       },
       realtime: {
         title: '实时信息',

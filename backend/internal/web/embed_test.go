@@ -7,9 +7,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -354,6 +356,35 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		server.serveIndexHTML(c)
 
 		assert.Equal(t, "no-cache", w.Header().Get("Cache-Control"))
+	})
+
+	t.Run("uses_same_nonce_as_csp_header", func(t *testing.T) {
+		provider := &mockSettingsProvider{
+			settings: map[string]string{"test": "value"},
+		}
+
+		server, err := NewFrontendServer(provider)
+		require.NoError(t, err)
+
+		router := gin.New()
+		router.Use(middleware.SecurityHeaders(config.CSPConfig{
+			Enabled: true,
+			Policy:  "default-src 'self'; script-src 'self' __CSP_NONCE__",
+		}, nil))
+		router.Use(server.Middleware())
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		router.ServeHTTP(w, req)
+
+		body := w.Body.String()
+		csp := w.Header().Get("Content-Security-Policy")
+		cspNonce := regexp.MustCompile(`'nonce-([^']+)'`).FindStringSubmatch(csp)
+		htmlNonce := regexp.MustCompile(`<script nonce="([^"]+)">window\.__APP_CONFIG__=`).FindStringSubmatch(body)
+
+		require.Len(t, cspNonce, 2)
+		require.Len(t, htmlNonce, 2)
+		assert.Equal(t, cspNonce[1], htmlNonce[1])
 	})
 
 	t.Run("fallback_on_settings_error", func(t *testing.T) {

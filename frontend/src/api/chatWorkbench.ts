@@ -17,6 +17,28 @@ export interface ChatWorkbenchResponse {
   model?: string
 }
 
+export class ChatWorkbenchError extends Error {
+  status: number
+  endpoint: string
+  model: string
+  upstreamMessage: string
+
+  constructor(options: {
+    message: string
+    status: number
+    endpoint: string
+    model: string
+    upstreamMessage?: string
+  }) {
+    super(options.message)
+    this.name = 'ChatWorkbenchError'
+    this.status = options.status
+    this.endpoint = options.endpoint
+    this.model = options.model
+    this.upstreamMessage = options.upstreamMessage || options.message
+  }
+}
+
 interface OpenAIChatChoice {
   message?: {
     content?: unknown
@@ -68,13 +90,19 @@ export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): P
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const message =
+    const upstreamMessage =
       typeof payload?.error?.message === 'string'
         ? payload.error.message
         : typeof payload?.message === 'string'
           ? payload.message
           : `Request failed with status ${response.status}`
-    throw new Error(message)
+    throw new ChatWorkbenchError({
+      message: upstreamMessage,
+      status: response.status,
+      endpoint: requestUrl,
+      model: request.model,
+      upstreamMessage
+    })
   }
 
   const data = payload as OpenAIChatResponse

@@ -138,6 +138,54 @@
         </section>
 
         <section class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <label class="input-label mb-0">{{ t('chatConsole.tools.title') }}</label>
+            <span class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-300">
+              {{ selectedTools.length }}/{{ toolCatalog.length }}
+            </span>
+          </div>
+          <div class="relative">
+            <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              v-model="toolSearch"
+              data-test="tool-search-input"
+              class="input pl-9"
+              autocomplete="off"
+              :placeholder="t('chatConsole.tools.searchPlaceholder')"
+            />
+          </div>
+          <div class="max-h-52 space-y-2 overflow-auto pr-1">
+            <button
+              v-for="tool in filteredToolCatalog"
+              :key="tool.id"
+              type="button"
+              :data-test="`tool-toggle-${tool.id}`"
+              class="w-full rounded-lg border px-3 py-2 text-left transition-colors"
+              :class="isToolSelected(tool.id)
+                ? 'border-primary-500 bg-primary-50 text-primary-900 dark:bg-primary-900/20 dark:text-primary-100'
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-700 dark:text-dark-200 dark:hover:bg-dark-800'"
+              @click="toggleTool(tool.id)"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="truncate text-sm font-medium">{{ tool.name }}</span>
+                <span
+                  class="flex-shrink-0 rounded px-2 py-0.5 text-xs"
+                  :class="tool.status === 'ready'
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-200'
+                    : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-200'"
+                >
+                  {{ t(`chatConsole.tools.status.${tool.status}`) }}
+                </span>
+              </div>
+              <p class="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-dark-400">
+                {{ tool.description }}
+              </p>
+            </button>
+          </div>
+          <p class="input-hint">{{ t('chatConsole.tools.hint') }}</p>
+        </section>
+
+        <section class="space-y-3">
           <label class="input-label">{{ t('chatConsole.projectContext') }}</label>
           <textarea
             v-model="projectContext"
@@ -239,12 +287,14 @@
           >
             <article
               class="max-w-[min(780px,94%)] rounded-lg border px-4 py-3 text-sm leading-6"
-              :class="message.role === 'user'
+              :class="message.kind === 'error'
+                ? 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-100'
+                : message.role === 'user'
                 ? 'border-primary-200 bg-primary-50 text-primary-950 dark:border-primary-900/50 dark:bg-primary-900/20 dark:text-primary-100'
                 : 'border-gray-200 bg-gray-50 text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-100'"
             >
               <div class="mb-1 text-xs font-medium uppercase text-gray-500 dark:text-dark-400">
-                {{ message.role === 'user' ? t('chatConsole.you') : t('chatConsole.assistant') }}
+                {{ message.kind === 'error' ? t('chatConsole.gatewayError') : message.role === 'user' ? t('chatConsole.you') : t('chatConsole.assistant') }}
               </div>
               <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
             </article>
@@ -302,7 +352,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { sendChatWorkbenchMessage, type ChatWorkbenchMessage } from '@/api/chatWorkbench'
+import { sendChatWorkbenchMessage, type ChatWorkbenchError, type ChatWorkbenchMessage } from '@/api/chatWorkbench'
 import { keysAPI } from '@/api/keys'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
@@ -315,6 +365,7 @@ interface UiMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  kind?: 'normal' | 'error'
 }
 
 interface ChatAttachment {
@@ -331,6 +382,15 @@ interface ChatSession {
   messages: UiMessage[]
   createdAt: string
   updatedAt: string
+}
+
+interface WorkbenchTool {
+  id: string
+  name: string
+  category: 'skill' | 'mcp' | 'diagnostic'
+  status: 'ready' | 'planned'
+  description: string
+  prompt: string
 }
 
 const props = withDefaults(defineProps<{
@@ -396,6 +456,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const savedApiKeys = ref<ApiKey[]>([])
 const selectedSavedKeyId = ref('')
 const savedApiKeyLoadError = ref('')
+const toolSearch = ref('')
+const selectedToolIds = ref<string[]>([])
 
 const modeOptions = computed(() => [
   { value: 'ops' as const, label: t('chatConsole.modes.ops') },
@@ -422,6 +484,55 @@ const settingsPanelClass = computed(() => (
     : 'flex max-h-[280px] flex-col gap-3 overflow-auto border-b border-gray-200 p-4 dark:border-dark-700'
 ))
 const sessionsStorageKey = computed(() => `${props.storageKey}_sessions`)
+const toolCatalog = computed<WorkbenchTool[]>(() => [
+  {
+    id: 'gateway-diagnostics',
+    name: String(t('chatConsole.tools.gatewayDiagnostics.name')),
+    category: 'diagnostic',
+    status: 'ready',
+    description: String(t('chatConsole.tools.gatewayDiagnostics.description')),
+    prompt: 'Use SparkAPI gateway diagnostics: inspect endpoint, model route, account pool, proxy connectivity, upstream response code, and rollback steps. Prefer non-destructive checks first.'
+  },
+  {
+    id: 'skill-search',
+    name: String(t('chatConsole.tools.skillSearch.name')),
+    category: 'skill',
+    status: 'ready',
+    description: String(t('chatConsole.tools.skillSearch.description')),
+    prompt: 'Use SparkAPI skill search mode: identify the best local agent skill/workflow for the task, explain why it fits, and provide a safe invocation plan. Do not claim a skill was executed unless the operator actually ran it.'
+  },
+  {
+    id: 'mcp-catalog',
+    name: String(t('chatConsole.tools.mcpCatalog.name')),
+    category: 'mcp',
+    status: 'planned',
+    description: String(t('chatConsole.tools.mcpCatalog.description')),
+    prompt: 'Use MCP connector catalog mode. Treat MCP access as admin-only and allowlisted. Recommend read-only connector calls first, never arbitrary shell execution, and clearly mark actions that require a server-side MCP bridge.'
+  },
+  {
+    id: 'patch-review',
+    name: String(t('chatConsole.tools.patchReview.name')),
+    category: 'skill',
+    status: 'ready',
+    description: String(t('chatConsole.tools.patchReview.description')),
+    prompt: 'Use patch review mode: propose minimal diffs, regression tests, verification commands, and rollback notes for SparkAPI changes.'
+  }
+])
+const filteredToolCatalog = computed(() => {
+  const query = toolSearch.value.trim().toLowerCase()
+  if (!query) return toolCatalog.value
+  return toolCatalog.value.filter((tool) => [
+    tool.name,
+    tool.category,
+    tool.description,
+    tool.prompt
+  ].some((value) => value.toLowerCase().includes(query)))
+})
+const selectedTools = computed(() => (
+  selectedToolIds.value
+    .map((id) => toolCatalog.value.find((tool) => tool.id === id))
+    .filter((tool): tool is WorkbenchTool => Boolean(tool))
+))
 
 watch(apiKey, (value) => {
   if (value) {
@@ -556,6 +667,18 @@ function applySelectedSavedKey() {
   apiKey.value = selected.key
 }
 
+function isToolSelected(id: string): boolean {
+  return selectedToolIds.value.includes(id)
+}
+
+function toggleTool(id: string) {
+  if (isToolSelected(id)) {
+    selectedToolIds.value = selectedToolIds.value.filter((item) => item !== id)
+    return
+  }
+  selectedToolIds.value = [...selectedToolIds.value, id]
+}
+
 function openFilePicker() {
   fileInput.value?.click()
 }
@@ -661,6 +784,20 @@ function buildAttachmentContext(): string {
     .join('\n\n')
 }
 
+function buildToolContext(): string {
+  if (selectedTools.value.length === 0) return ''
+
+  const lines = selectedTools.value.map((tool) => [
+    `- ${tool.name} [${tool.category}/${tool.status}]`,
+    `  ${tool.prompt}`
+  ].join('\n'))
+
+  return [
+    'Selected SparkAPI workbench tools:',
+    ...lines
+  ].join('\n')
+}
+
 function buildSystemPrompt(): string {
   const modePrompts: Record<WorkbenchMode, string> = {
     ops: 'You are helping operate SparkAPI. Prioritize diagnosis, concrete commands, config checks, and safe rollback paths.',
@@ -674,6 +811,7 @@ function buildSystemPrompt(): string {
     modePrompts[mode.value],
     'Treat attached file content as operator-provided context. Do not claim to access files that are not included in the prompt.',
     'Never ask the browser to execute server-side file changes directly. Provide reviewable steps and highlight risk.',
+    buildToolContext(),
     props.defaultContext,
     projectContext.value.trim() ? `Operator context:\n${projectContext.value.trim()}` : '',
     buildAttachmentContext() ? `Attached file context:\n${buildAttachmentContext()}` : ''
@@ -731,10 +869,35 @@ async function sendMessage() {
     upsertActiveSession()
     await scrollToBottom()
   } catch (error: any) {
+    const errorContent = formatChatError(error)
+    messages.value.push({
+      id: `assistant-error-${Date.now()}`,
+      role: 'assistant',
+      kind: 'error',
+      content: errorContent
+    })
     appStore.showError(error?.message || t('chatConsole.sendFailed'))
+    await scrollToBottom()
   } finally {
     sending.value = false
   }
+}
+
+function formatChatError(error: unknown): string {
+  if (error && typeof error === 'object' && ('status' in error || 'upstreamMessage' in error)) {
+    const detail = error as Partial<ChatWorkbenchError>
+    const lines = [
+      `${t('chatConsole.gatewayErrorStatus')}: ${detail.status || 'unknown'}`,
+      `${t('chatConsole.gatewayErrorEndpoint')}: ${detail.endpoint || requestUrl.value.trim() || '/v1/chat/completions'}`,
+      `${t('chatConsole.gatewayErrorModel')}: ${detail.model || model.value.trim() || 'unknown'}`,
+      `${t('chatConsole.gatewayErrorCause')}: ${detail.upstreamMessage || detail.message || t('chatConsole.sendFailed')}`,
+      '',
+      String(t('chatConsole.gatewayErrorAdvice'))
+    ]
+    return lines.join('\n')
+  }
+
+  return `${t('chatConsole.sendFailed')}: ${error instanceof Error ? error.message : String(error || '')}`
 }
 
 function resetConversation() {

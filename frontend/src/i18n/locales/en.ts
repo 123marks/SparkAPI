@@ -398,7 +398,38 @@ export default {
     submitHint: 'Ctrl/Command + Enter sends',
     attachedCount: '{count} file(s) attached',
     defaultFileQuestion: 'Please analyze the attached file content, call out key facts, risks, and next steps.',
-    sendFailed: 'Failed to send message'
+    sendFailed: 'Failed to send message',
+    gatewayError: 'Gateway error',
+    gatewayErrorStatus: 'Status',
+    gatewayErrorEndpoint: 'Endpoint',
+    gatewayErrorModel: 'Model',
+    gatewayErrorCause: 'Upstream cause',
+    gatewayErrorAdvice: 'Check whether the account pool is available, proxy connectivity works, the model routes to the right account, and the upstream site is refusing connections. Confirm in account testing and Ops monitoring before retrying the same failing account.',
+    tools: {
+      title: 'Capability Catalog',
+      searchPlaceholder: 'Search skills, MCP, diagnostics',
+      hint: 'Selected capabilities are sent as system context. The browser does not execute server commands directly.',
+      status: {
+        ready: 'Ready',
+        planned: 'Bridge needed'
+      },
+      gatewayDiagnostics: {
+        name: 'Gateway diagnostics',
+        description: 'Guide diagnosis across endpoint, model, account pool, proxy, and upstream response paths.'
+      },
+      skillSearch: {
+        name: 'Skill search',
+        description: 'Match the task to a local agent skill and produce a safe invocation plan.'
+      },
+      mcpCatalog: {
+        name: 'MCP connector catalog',
+        description: 'Plan auditable MCP call boundaries; real calls require a server-side allowlisted bridge.'
+      },
+      patchReview: {
+        name: 'Patch review',
+        description: 'Organize change advice around minimal diffs, regression tests, verification, and rollback.'
+      }
+    }
   },
 
   // Navigation
@@ -5397,7 +5428,8 @@ export default {
         queued: 'Queue {count}',
         rateLimited: 'Rate-limited {count}',
         errorAccounts: 'Errors {count}',
-        loadFailed: 'Failed to load concurrency data'
+        loadFailed: 'Failed to load concurrency data',
+        availabilityPartialFailed: 'Account availability is temporarily unavailable; concurrency and queue data remain visible.'
       },
       realtime: {
         title: 'Realtime',
