@@ -372,6 +372,16 @@ export default {
       security: '安全审查',
       ux: '体验优化'
     },
+    runTypes: {
+      chat: '对话',
+      image: '图片'
+    },
+    streamStatus: {
+      connecting: '正在连接',
+      waiting: '等待完整响应',
+      streaming: '正在输出',
+      finalizing: '正在收尾'
+    },
     projectContext: '上下文',
     projectContextPlaceholder: '补充当前问题、部署路径、账号池、代理或文件背景。',
     files: '文件上下文',
@@ -398,6 +408,9 @@ export default {
     submitHint: 'Ctrl/Command + Enter 发送',
     attachedCount: '已附加 {count} 个文件',
     defaultFileQuestion: '请分析我附加的文件内容，指出关键信息、风险和下一步建议。',
+    imageGenerating: '正在通过 SparkAPI 生成图片...',
+    imageGenerated: '已生成 {count} 张图片。',
+    imageResultAlt: '生成的图片',
     sendFailed: '发送消息失败',
     gatewayError: '网关错误',
     gatewayErrorStatus: '状态码',
@@ -417,6 +430,10 @@ export default {
         name: '网关诊断',
         description: '让助手按端点、模型、账号池、代理和上游响应链路排查。'
       },
+      accountPatrol: {
+        name: '账号巡检',
+        description: '规划按分组测活、代理连通、异常清理和安全批量操作。'
+      },
       skillSearch: {
         name: 'Skill 检索',
         description: '为当前任务匹配合适的本地 agent skill，并给出安全调用步骤。'
@@ -428,6 +445,10 @@ export default {
       patchReview: {
         name: '补丁审查',
         description: '按最小 diff、回归测试、验证命令和回滚路径组织修改建议。'
+      },
+      imageGeneration: {
+        name: '图片生成',
+        description: '使用网关图片端点，并检查模型、分组权限、计费档位和上游可用性。'
       }
     }
   },

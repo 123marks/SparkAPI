@@ -26,7 +26,7 @@
         </button>
         <button type="button" class="btn btn-primary btn-sm" :disabled="sending || !canSend" @click="sendMessage">
           <Icon v-if="!sending" name="arrowRight" size="sm" class="mr-1" />
-          {{ sending ? t('chatConsole.sending') : t('chatConsole.send') }}
+          {{ sending ? currentAssistantStatus : t('chatConsole.send') }}
         </button>
       </div>
     </header>
@@ -293,10 +293,37 @@
                 ? 'border-primary-200 bg-primary-50 text-primary-950 dark:border-primary-900/50 dark:bg-primary-900/20 dark:text-primary-100'
                 : 'border-gray-200 bg-gray-50 text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-100'"
             >
-              <div class="mb-1 text-xs font-medium uppercase text-gray-500 dark:text-dark-400">
-                {{ message.kind === 'error' ? t('chatConsole.gatewayError') : message.role === 'user' ? t('chatConsole.you') : t('chatConsole.assistant') }}
+              <div class="mb-1 flex items-center justify-between gap-3 text-xs font-medium uppercase text-gray-500 dark:text-dark-400">
+                <span>
+                  {{ message.kind === 'error' ? t('chatConsole.gatewayError') : message.role === 'user' ? t('chatConsole.you') : t('chatConsole.assistant') }}
+                </span>
+                <span v-if="message.status && message.kind !== 'error'" class="normal-case text-gray-400 dark:text-dark-500">
+                  {{ t(`chatConsole.streamStatus.${message.status}`) }}
+                </span>
               </div>
-              <div class="whitespace-pre-wrap break-words">{{ message.content }}</div>
+              <div
+                v-if="message.role === 'assistant'"
+                class="spark-chat-markdown break-words"
+                :class="message.content ? '' : 'text-gray-400 dark:text-dark-500'"
+                v-html="renderAssistantMessage(message)"
+              />
+              <div v-else class="whitespace-pre-wrap break-words">{{ message.content }}</div>
+              <div v-if="message.images?.length" class="mt-3 grid gap-3 sm:grid-cols-2">
+                <figure
+                  v-for="(image, imageIndex) in message.images"
+                  :key="`${message.id}-image-${imageIndex}`"
+                  class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900"
+                >
+                  <img
+                    :src="image.url"
+                    :alt="image.revisedPrompt || t('chatConsole.imageResultAlt')"
+                    class="aspect-square w-full object-cover"
+                  />
+                  <figcaption v-if="image.revisedPrompt" class="border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    {{ image.revisedPrompt }}
+                  </figcaption>
+                </figure>
+              </div>
             </article>
           </div>
 
@@ -338,9 +365,26 @@
                 {{ t('chatConsole.submitHint') }}
                 <span v-if="attachments.length > 0"> - {{ t('chatConsole.attachedCount', { count: attachments.length }) }}</span>
               </div>
-              <button class="btn btn-primary" type="submit" :disabled="sending || !canSend">
-                {{ sending ? t('chatConsole.sending') : t('chatConsole.send') }}
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
+                  <button
+                    v-for="option in runTypeOptions"
+                    :key="option.value"
+                    type="button"
+                    class="rounded-md px-2.5 py-1.5 transition-colors"
+                    :class="runType === option.value
+                      ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-700 dark:text-primary-200'
+                      : 'text-gray-500 hover:text-gray-800 dark:text-dark-300 dark:hover:text-white'"
+                    :disabled="sending"
+                    @click="runType = option.value"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+                <button class="btn btn-primary" type="submit" :disabled="sending || !canSend">
+                  {{ sending ? currentAssistantStatus : t('chatConsole.send') }}
+                </button>
+              </div>
             </div>
           </div>
         </form>
@@ -350,22 +394,35 @@
 </template>
 
 <script setup lang="ts">
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { sendChatWorkbenchMessage, type ChatWorkbenchError, type ChatWorkbenchMessage } from '@/api/chatWorkbench'
+import {
+  sendChatWorkbenchImageGeneration,
+  sendChatWorkbenchMessageStream,
+  type ChatWorkbenchError,
+  type ChatWorkbenchGeneratedImage,
+  type ChatWorkbenchMessage
+} from '@/api/chatWorkbench'
+import { accountsAPI } from '@/api/admin/accounts'
 import { keysAPI } from '@/api/keys'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
-import type { ApiKey } from '@/types'
+import type { Account, ApiKey } from '@/types'
 
 type WorkbenchMode = 'ops' | 'patch' | 'security' | 'ux'
 type LayoutMode = 'split' | 'compact'
+type RunType = 'chat' | 'image'
+type StreamStatus = 'connecting' | 'waiting' | 'streaming' | 'finalizing'
 
 interface UiMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   kind?: 'normal' | 'error'
+  status?: StreamStatus
+  images?: ChatWorkbenchGeneratedImage[]
 }
 
 interface ChatAttachment {
@@ -418,6 +475,7 @@ const maxFiles = 8
 const maxFileBytes = 256 * 1024
 const maxTotalAttachmentChars = 24000
 const maxSessions = 20
+const accountPatrolLimit = 500
 const acceptedFileTypes = [
   '.txt',
   '.md',
@@ -442,6 +500,7 @@ const requestUrl = ref(localStorage.getItem(`${props.storageKey}_request_url`) |
 const model = ref(localStorage.getItem(`${props.storageKey}_model`) || 'gpt-5.4')
 const temperature = ref(0.2)
 const mode = ref<WorkbenchMode>(props.defaultMode)
+const runType = ref<RunType>('chat')
 const projectContext = ref('')
 const draft = ref('')
 const sending = ref(false)
@@ -465,8 +524,18 @@ const modeOptions = computed(() => [
   { value: 'security' as const, label: t('chatConsole.modes.security') },
   { value: 'ux' as const, label: t('chatConsole.modes.ux') }
 ])
+const runTypeOptions = computed(() => [
+  { value: 'chat' as const, label: t('chatConsole.runTypes.chat') },
+  { value: 'image' as const, label: t('chatConsole.runTypes.image') }
+])
 
 const visibleMessages = computed(() => messages.value)
+const currentAssistantStatus = computed(() => {
+  const activeAssistant = [...messages.value].reverse().find((message) => message.role === 'assistant' && message.status)
+  return activeAssistant?.status
+    ? String(t(`chatConsole.streamStatus.${activeAssistant.status}`))
+    : String(t('chatConsole.sending'))
+})
 const canSend = computed(() => (
   apiKey.value.trim() !== '' &&
   model.value.trim() !== '' &&
@@ -494,6 +563,14 @@ const toolCatalog = computed<WorkbenchTool[]>(() => [
     prompt: 'Use SparkAPI gateway diagnostics: inspect endpoint, model route, account pool, proxy connectivity, upstream response code, and rollback steps. Prefer non-destructive checks first.'
   },
   {
+    id: 'account-patrol',
+    name: String(t('chatConsole.tools.accountPatrol.name')),
+    category: 'diagnostic',
+    status: 'ready',
+    description: String(t('chatConsole.tools.accountPatrol.description')),
+    prompt: 'Use SparkAPI account patrol mode. Start from the included read-only account snapshot. Diagnose by group, platform, proxy, schedulability, error status, rate-limit windows, and last-used freshness. Reference the Linux.do workflow idea safely: CPA-to-sub2api JSON conversion, group import, batch testing, and automated cleanup must be explicit, reversible, and never executed from browser chat.'
+  },
+  {
     id: 'skill-search',
     name: String(t('chatConsole.tools.skillSearch.name')),
     category: 'skill',
@@ -516,6 +593,14 @@ const toolCatalog = computed<WorkbenchTool[]>(() => [
     status: 'ready',
     description: String(t('chatConsole.tools.patchReview.description')),
     prompt: 'Use patch review mode: propose minimal diffs, regression tests, verification commands, and rollback notes for SparkAPI changes.'
+  },
+  {
+    id: 'image-generation',
+    name: String(t('chatConsole.tools.imageGeneration.name')),
+    category: 'skill',
+    status: 'ready',
+    description: String(t('chatConsole.tools.imageGeneration.description')),
+    prompt: 'Use SparkAPI image generation mode. When the operator asks for images, route through /v1/images/generations with a gpt-image model, check group image permission, image billing tier, and proxy/upstream availability before retrying.'
   }
 ])
 const filteredToolCatalog = computed(() => {
@@ -798,7 +883,118 @@ function buildToolContext(): string {
   ].join('\n')
 }
 
-function buildSystemPrompt(): string {
+function groupNames(account: Account): string[] {
+  if (Array.isArray(account.groups) && account.groups.length > 0) {
+    return account.groups
+      .map((group) => group?.name || (group?.id ? `#${group.id}` : ''))
+      .filter(Boolean)
+  }
+
+  if (Array.isArray(account.group_ids) && account.group_ids.length > 0) {
+    return account.group_ids.map((id) => `#${id}`)
+  }
+
+  return ['Unassigned']
+}
+
+function summarizeAccountPatrolSnapshot(accounts: Account[], total: number): string {
+  const byStatus = new Map<string, number>()
+  const byPlatform = new Map<string, number>()
+  const byGroup = new Map<string, { total: number, error: number, unschedulable: number }>()
+  const notable: string[] = []
+
+  for (const account of accounts) {
+    byStatus.set(account.status, (byStatus.get(account.status) || 0) + 1)
+    byPlatform.set(account.platform, (byPlatform.get(account.platform) || 0) + 1)
+
+    for (const name of groupNames(account)) {
+      const current = byGroup.get(name) || { total: 0, error: 0, unschedulable: 0 }
+      current.total += 1
+      if (account.status === 'error') current.error += 1
+      if (account.schedulable === false) current.unschedulable += 1
+      byGroup.set(name, current)
+    }
+
+    const reasons = [
+      account.status === 'error' ? 'status=error' : '',
+      account.schedulable === false ? 'unschedulable' : '',
+      account.rate_limited_at ? `rate_limited_at=${account.rate_limited_at}` : '',
+      account.overload_until ? `overload_until=${account.overload_until}` : '',
+      account.temp_unschedulable_until ? `temp_unschedulable_until=${account.temp_unschedulable_until}` : '',
+      account.error_message ? `error=${account.error_message}` : ''
+    ].filter(Boolean)
+
+    if (reasons.length > 0 && notable.length < 20) {
+      notable.push([
+        `#${account.id} ${account.name}`,
+        `platform=${account.platform}`,
+        `type=${account.type}`,
+        `groups=${groupNames(account).join(',')}`,
+        `proxy=${account.proxy_id ?? 'none'}`,
+        `last_used=${account.last_used_at || 'never'}`,
+        reasons.join('; ')
+      ].join(' | '))
+    }
+  }
+
+  const formatMap = (map: Map<string, number>) => (
+    Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([key, count]) => `${key}=${count}`)
+      .join(', ') || 'none'
+  )
+
+  const groupLines = Array.from(byGroup.entries())
+    .sort((a, b) => b[1].error - a[1].error || b[1].unschedulable - a[1].unschedulable || a[0].localeCompare(b[0]))
+    .slice(0, 12)
+    .map(([name, stats]) => `- Group ${name}: total=${stats.total}, error=${stats.error}, unschedulable=${stats.unschedulable}`)
+
+  return [
+    'SparkAPI account patrol snapshot (read-only):',
+    `Total accounts: ${total}`,
+    `Sampled accounts: ${accounts.length}${total > accounts.length ? ` of ${total}` : ''}`,
+    `By status: ${formatMap(byStatus)}`,
+    `By platform: ${formatMap(byPlatform)}`,
+    'Group risk summary:',
+    ...(groupLines.length > 0 ? groupLines : ['- none']),
+    'Notable accounts:',
+    ...(notable.length > 0 ? notable.map((line) => `- ${line}`) : ['- none']),
+    'Patrol constraints: do not delete, disable, clear errors, refresh credentials, or run batch tests unless the operator explicitly confirms a backend action. Prefer staged plan: filter -> sample test -> grouped test -> quarantine -> reversible cleanup.'
+  ].join('\n')
+}
+
+function createTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(timeoutMs)
+  }
+  return undefined
+}
+
+async function buildAccountPatrolContext(): Promise<string> {
+  if (!isToolSelected('account-patrol')) return ''
+
+  try {
+    const result = await accountsAPI.list(1, accountPatrolLimit, {
+      sort_by: 'updated_at',
+      sort_order: 'desc',
+      lite: 'true'
+    }, {
+      signal: createTimeoutSignal(15000)
+    })
+
+    return summarizeAccountPatrolSnapshot(result.items || [], result.total || 0)
+  } catch (error: any) {
+    const status = Number(error?.status || error?.response?.status || 0)
+    return [
+      'SparkAPI account patrol snapshot unavailable.',
+      `Reason: ${status === 401 || status === 403 ? 'admin session is not authorized for /admin/accounts' : error?.message || 'request failed'}`,
+      'Fallback: ask the operator to open Account Management, filter status=error/rate-limited/unschedulable by group, export a small sample, and attach it here for analysis.'
+    ].join('\n')
+  }
+}
+
+async function buildSystemPrompt(): Promise<string> {
+  const accountPatrolContext = await buildAccountPatrolContext()
   const modePrompts: Record<WorkbenchMode, string> = {
     ops: 'You are helping operate SparkAPI. Prioritize diagnosis, concrete commands, config checks, and safe rollback paths.',
     patch: 'You are helping plan SparkAPI code changes. Produce scoped implementation steps and patch-oriented guidance. Do not claim files were changed.',
@@ -809,9 +1005,13 @@ function buildSystemPrompt(): string {
   const parts = [
     'You are SparkAPI Chat Console, an assistant embedded in a self-hosted AI gateway.',
     modePrompts[mode.value],
+    runType.value === 'image'
+      ? 'The operator selected image generation. If the request is about generating an image, summarize the image request, expected model, size, group permission, and safety checks.'
+      : '',
     'Treat attached file content as operator-provided context. Do not claim to access files that are not included in the prompt.',
     'Never ask the browser to execute server-side file changes directly. Provide reviewable steps and highlight risk.',
     buildToolContext(),
+    accountPatrolContext,
     props.defaultContext,
     projectContext.value.trim() ? `Operator context:\n${projectContext.value.trim()}` : '',
     buildAttachmentContext() ? `Attached file context:\n${buildAttachmentContext()}` : ''
@@ -820,9 +1020,9 @@ function buildSystemPrompt(): string {
   return parts.filter(Boolean).join('\n\n')
 }
 
-function toChatMessages(nextUserMessage: string): ChatWorkbenchMessage[] {
+async function toChatMessages(nextUserMessage: string): Promise<ChatWorkbenchMessage[]> {
   return [
-    { role: 'system', content: buildSystemPrompt() },
+    { role: 'system', content: await buildSystemPrompt() },
     ...messages.value.map((message) => ({ role: message.role, content: message.content })),
     { role: 'user', content: nextUserMessage }
   ]
@@ -846,41 +1046,87 @@ async function sendMessage() {
     content
   }
 
-  const requestMessages = toChatMessages(content)
   messages.value.push(userMessage)
+  const assistantMessage: UiMessage = {
+    id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    role: 'assistant',
+    content: '',
+    status: 'connecting'
+  }
+  messages.value.push(assistantMessage)
   draft.value = ''
   sending.value = true
   await scrollToBottom()
 
   try {
-    const response = await sendChatWorkbenchMessage({
-      apiKey: apiKey.value.trim(),
-      baseUrl: requestUrl.value.trim() || '/v1/chat/completions',
-      model: model.value.trim(),
-      temperature: temperature.value,
-      messages: requestMessages,
-      maxTokens: 2000
-    })
-    messages.value.push({
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      content: response.content
-    })
+    const requestMessages = await toChatMessages(content)
+
+    if (runType.value === 'image') {
+      assistantMessage.content = String(t('chatConsole.imageGenerating'))
+      assistantMessage.status = 'streaming'
+      const imageResponse = await sendChatWorkbenchImageGeneration({
+        apiKey: apiKey.value.trim(),
+        baseUrl: normalizeImagesRequestUrl(requestUrl.value),
+        model: normalizeImageModel(model.value),
+        prompt: content,
+        size: '1024x1024',
+        quality: 'auto',
+        n: 1
+      })
+      assistantMessage.content = String(t('chatConsole.imageGenerated', { count: imageResponse.images.length }))
+      assistantMessage.images = imageResponse.images
+      assistantMessage.status = undefined
+    } else {
+      const response = await sendChatWorkbenchMessageStream({
+        apiKey: apiKey.value.trim(),
+        baseUrl: requestUrl.value.trim() || '/v1/chat/completions',
+        model: model.value.trim(),
+        temperature: temperature.value,
+        messages: requestMessages,
+        maxTokens: 2000
+      }, {
+        onStatus: (status) => {
+          assistantMessage.status = status
+        },
+        onDelta: (delta) => {
+          assistantMessage.content += delta
+          scrollToBottom()
+        }
+      })
+      assistantMessage.content = response.content || assistantMessage.content
+      assistantMessage.status = undefined
+    }
     upsertActiveSession()
     await scrollToBottom()
   } catch (error: any) {
     const errorContent = formatChatError(error)
-    messages.value.push({
-      id: `assistant-error-${Date.now()}`,
-      role: 'assistant',
-      kind: 'error',
-      content: errorContent
-    })
+    assistantMessage.kind = 'error'
+    assistantMessage.content = errorContent
+    assistantMessage.status = undefined
+    assistantMessage.images = undefined
     appStore.showError(error?.message || t('chatConsole.sendFailed'))
     await scrollToBottom()
   } finally {
     sending.value = false
   }
+}
+
+function normalizeImageModel(value: string): string {
+  const current = value.trim()
+  if (current.toLowerCase().startsWith('gpt-image-')) {
+    return current
+  }
+  return 'gpt-image-2'
+}
+
+function normalizeImagesRequestUrl(value: string): string {
+  const current = value.trim()
+  if (!current || current === '/v1/chat/completions') {
+    return '/v1/images/generations'
+  }
+  return current
+    .replace(/\/v1\/chat\/completions$/, '/v1/images/generations')
+    .replace(/\/chat\/completions$/, '/images/generations')
 }
 
 function formatChatError(error: unknown): string {
@@ -906,6 +1152,18 @@ function resetConversation() {
   activeSessionId.value = ''
 }
 
+function renderAssistantMessage(message: UiMessage): string {
+  if (!message.content && message.status) {
+    return DOMPurify.sanitize(`<p>${t(`chatConsole.streamStatus.${message.status}`)}</p>`)
+  }
+
+  const html = marked.parse(message.content || '', {
+    async: false,
+    breaks: true
+  }) as string
+  return DOMPurify.sanitize(html)
+}
+
 function handleDraftKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
     event.preventDefault()
@@ -913,3 +1171,66 @@ function handleDraftKeydown(event: KeyboardEvent) {
   }
 }
 </script>
+
+<style scoped>
+.spark-chat-markdown :deep(p) {
+  margin: 0 0 0.75rem;
+}
+
+.spark-chat-markdown :deep(p:last-child),
+.spark-chat-markdown :deep(ul:last-child),
+.spark-chat-markdown :deep(ol:last-child),
+.spark-chat-markdown :deep(pre:last-child) {
+  margin-bottom: 0;
+}
+
+.spark-chat-markdown :deep(ul),
+.spark-chat-markdown :deep(ol) {
+  margin: 0 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+.spark-chat-markdown :deep(ul) {
+  list-style: disc;
+}
+
+.spark-chat-markdown :deep(ol) {
+  list-style: decimal;
+}
+
+.spark-chat-markdown :deep(li + li) {
+  margin-top: 0.25rem;
+}
+
+.spark-chat-markdown :deep(code) {
+  border-radius: 0.25rem;
+  background: rgb(229 231 235 / 0.75);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}
+
+.dark .spark-chat-markdown :deep(code) {
+  background: rgb(31 41 55 / 0.8);
+}
+
+.spark-chat-markdown :deep(pre) {
+  margin: 0 0 0.75rem;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: rgb(17 24 39);
+  padding: 0.75rem;
+  color: rgb(243 244 246);
+}
+
+.spark-chat-markdown :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.spark-chat-markdown :deep(a) {
+  color: rgb(37 99 235);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+</style>

@@ -372,6 +372,16 @@ export default {
       security: 'Security',
       ux: 'UX'
     },
+    runTypes: {
+      chat: 'Chat',
+      image: 'Image'
+    },
+    streamStatus: {
+      connecting: 'Connecting',
+      waiting: 'Waiting for full response',
+      streaming: 'Streaming',
+      finalizing: 'Finalizing'
+    },
     projectContext: 'Context',
     projectContextPlaceholder: 'Add current issue, deployment path, account pool, proxy, or file background.',
     files: 'File Context',
@@ -398,6 +408,9 @@ export default {
     submitHint: 'Ctrl/Command + Enter sends',
     attachedCount: '{count} file(s) attached',
     defaultFileQuestion: 'Please analyze the attached file content, call out key facts, risks, and next steps.',
+    imageGenerating: 'Generating image through SparkAPI...',
+    imageGenerated: 'Generated {count} image(s).',
+    imageResultAlt: 'Generated image',
     sendFailed: 'Failed to send message',
     gatewayError: 'Gateway error',
     gatewayErrorStatus: 'Status',
@@ -417,6 +430,10 @@ export default {
         name: 'Gateway diagnostics',
         description: 'Guide diagnosis across endpoint, model, account pool, proxy, and upstream response paths.'
       },
+      accountPatrol: {
+        name: 'Account patrol',
+        description: 'Plan grouped account health checks, proxy reachability, error cleanup, and safe batch actions.'
+      },
       skillSearch: {
         name: 'Skill search',
         description: 'Match the task to a local agent skill and produce a safe invocation plan.'
@@ -428,6 +445,10 @@ export default {
       patchReview: {
         name: 'Patch review',
         description: 'Organize change advice around minimal diffs, regression tests, verification, and rollback.'
+      },
+      imageGeneration: {
+        name: 'Image generation',
+        description: 'Use the gateway images endpoint and check model, group permission, billing tier, and upstream availability.'
       }
     }
   },

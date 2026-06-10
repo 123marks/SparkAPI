@@ -17,6 +17,30 @@ export interface ChatWorkbenchResponse {
   model?: string
 }
 
+export interface ChatWorkbenchImageGenerationRequest {
+  apiKey: string
+  baseUrl?: string
+  model: string
+  prompt: string
+  size?: string
+  quality?: string
+  n?: number
+}
+
+export interface ChatWorkbenchGeneratedImage {
+  url: string
+  revisedPrompt?: string
+}
+
+export interface ChatWorkbenchImageGenerationResponse {
+  images: ChatWorkbenchGeneratedImage[]
+}
+
+export interface ChatWorkbenchStreamHandlers {
+  onDelta?: (delta: string) => void
+  onStatus?: (status: 'connecting' | 'waiting' | 'streaming' | 'finalizing') => void
+}
+
 export class ChatWorkbenchError extends Error {
   status: number
   endpoint: string
@@ -43,11 +67,23 @@ interface OpenAIChatChoice {
   message?: {
     content?: unknown
   }
+  delta?: {
+    content?: unknown
+  }
+  text?: unknown
 }
 
 interface OpenAIChatResponse {
   choices?: OpenAIChatChoice[]
   model?: string
+}
+
+interface OpenAIImageGenerationResponse {
+  data?: Array<{
+    url?: unknown
+    b64_json?: unknown
+    revised_prompt?: unknown
+  }>
 }
 
 function normalizeAssistantContent(content: unknown): string {
@@ -71,9 +107,12 @@ function normalizeAssistantContent(content: unknown): string {
   return ''
 }
 
-export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): Promise<ChatWorkbenchResponse> {
-  const requestUrl = request.baseUrl?.trim() || '/v1/chat/completions'
-  const response = await fetch(requestUrl, {
+function getRequestUrl(request: ChatWorkbenchRequest): string {
+  return request.baseUrl?.trim() || '/v1/chat/completions'
+}
+
+function buildChatRequestInit(request: ChatWorkbenchRequest, stream: boolean): RequestInit {
+  return {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -84,25 +123,161 @@ export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): P
       messages: request.messages,
       temperature: request.temperature ?? 0.2,
       max_tokens: request.maxTokens ?? 1600,
-      stream: false
+      stream
     })
-  })
+  }
+}
 
-  const payload = await response.json().catch(() => ({}))
+async function readResponsePayload(response: Response): Promise<any> {
+  if (typeof response.json === 'function') {
+    return response.json().catch(() => ({}))
+  }
+
+  if (typeof response.text === 'function') {
+    const text = await response.text().catch(() => '')
+    if (!text) return {}
+    try {
+      return JSON.parse(text)
+    } catch {
+      return { message: text }
+    }
+  }
+
+  return {}
+}
+
+function getUpstreamErrorMessage(payload: any, status: number): string {
+  return typeof payload?.error?.message === 'string'
+    ? payload.error.message
+    : typeof payload?.message === 'string'
+      ? payload.message
+      : `Request failed with status ${status}`
+}
+
+function throwStructuredError(payload: any, status: number, endpoint: string, model: string): never {
+  const upstreamMessage = getUpstreamErrorMessage(payload, status)
+  throw new ChatWorkbenchError({
+    message: upstreamMessage,
+    status,
+    endpoint,
+    model,
+    upstreamMessage
+  })
+}
+
+function isEventStreamResponse(response: Response): boolean {
+  const contentType = response.headers?.get?.('content-type') || ''
+  return contentType.toLowerCase().includes('text/event-stream')
+}
+
+function extractStreamingDelta(payload: any): string {
+  if (!payload || typeof payload !== 'object') return ''
+
+  const chatChoice = Array.isArray(payload.choices) ? payload.choices[0] as OpenAIChatChoice | undefined : undefined
+  const deltaContent = normalizeAssistantContent(chatChoice?.delta?.content)
+  if (deltaContent) return deltaContent
+
+  const messageContent = normalizeAssistantContent(chatChoice?.message?.content)
+  if (messageContent) return messageContent
+
+  const choiceText = normalizeAssistantContent(chatChoice?.text)
+  if (choiceText) return choiceText
+
+  if (typeof payload.delta === 'string') {
+    return payload.delta
+  }
+
+  if (payload.type === 'response.output_text.delta' && typeof payload.delta === 'string') {
+    return payload.delta
+  }
+
+  return ''
+}
+
+function parseSSEBlocks(buffer: string): { blocks: string[], remainder: string } {
+  const normalized = buffer.replace(/\r\n/g, '\n')
+  const parts = normalized.split('\n\n')
+  return {
+    blocks: parts.slice(0, -1),
+    remainder: parts.at(-1) || ''
+  }
+}
+
+function parseSSEData(block: string): string {
+  return block
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n')
+    .trim()
+}
+
+async function parseStreamingResponse(
+  response: Response,
+  handlers: ChatWorkbenchStreamHandlers
+): Promise<ChatWorkbenchResponse> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    const payload = await readResponsePayload(response)
+    const data = payload as OpenAIChatResponse
+    return {
+      content: normalizeAssistantContent(data.choices?.[0]?.message?.content),
+      model: data.model
+    }
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let content = ''
+  let model: string | undefined
+
+  const handleBlock = (block: string) => {
+    const data = parseSSEData(block)
+    if (!data || data === '[DONE]') return
+
+    let payload: any
+    try {
+      payload = JSON.parse(data)
+    } catch {
+      return
+    }
+
+    if (typeof payload.model === 'string') {
+      model = payload.model
+    }
+
+    const delta = extractStreamingDelta(payload)
+    if (!delta) return
+    content += delta
+    handlers.onStatus?.('streaming')
+    handlers.onDelta?.(delta)
+  }
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const parsed = parseSSEBlocks(buffer)
+    parsed.blocks.forEach(handleBlock)
+    buffer = parsed.remainder
+  }
+
+  buffer += decoder.decode()
+  if (buffer.trim()) {
+    handleBlock(buffer)
+  }
+
+  handlers.onStatus?.('finalizing')
+  return { content, model }
+}
+
+export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): Promise<ChatWorkbenchResponse> {
+  const requestUrl = getRequestUrl(request)
+  const response = await fetch(requestUrl, buildChatRequestInit(request, false))
+  const payload = await readResponsePayload(response)
   if (!response.ok) {
-    const upstreamMessage =
-      typeof payload?.error?.message === 'string'
-        ? payload.error.message
-        : typeof payload?.message === 'string'
-          ? payload.message
-          : `Request failed with status ${response.status}`
-    throw new ChatWorkbenchError({
-      message: upstreamMessage,
-      status: response.status,
-      endpoint: requestUrl,
-      model: request.model,
-      upstreamMessage
-    })
+    throwStructuredError(payload, response.status, requestUrl, request.model)
   }
 
   const data = payload as OpenAIChatResponse
@@ -115,4 +290,88 @@ export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): P
     content,
     model: data.model
   }
+}
+
+export async function sendChatWorkbenchMessageStream(
+  request: ChatWorkbenchRequest,
+  handlers: ChatWorkbenchStreamHandlers = {}
+): Promise<ChatWorkbenchResponse> {
+  const requestUrl = request.baseUrl?.trim() || '/v1/chat/completions'
+  handlers.onStatus?.('connecting')
+  const response = await fetch(requestUrl, buildChatRequestInit(request, true))
+
+  if (!response.ok) {
+    const payload = await readResponsePayload(response)
+    throwStructuredError(payload, response.status, requestUrl, request.model)
+  }
+
+  if (isEventStreamResponse(response)) {
+    const streamed = await parseStreamingResponse(response, handlers)
+    if (!streamed.content) {
+      throw new Error('Empty assistant response')
+    }
+    return streamed
+  }
+
+  handlers.onStatus?.('waiting')
+  const payload = await readResponsePayload(response)
+  const data = payload as OpenAIChatResponse
+  const content = normalizeAssistantContent(data.choices?.[0]?.message?.content)
+  if (!content) {
+    throw new Error('Empty assistant response')
+  }
+  handlers.onStatus?.('finalizing')
+
+  return {
+    content,
+    model: data.model
+  }
+}
+
+export async function sendChatWorkbenchImageGeneration(
+  request: ChatWorkbenchImageGenerationRequest
+): Promise<ChatWorkbenchImageGenerationResponse> {
+  const requestUrl = request.baseUrl?.trim() || '/v1/images/generations'
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${request.apiKey}`
+    },
+    body: JSON.stringify({
+      model: request.model,
+      prompt: request.prompt,
+      size: request.size || '1024x1024',
+      quality: request.quality || 'auto',
+      n: request.n ?? 1,
+      response_format: 'b64_json'
+    })
+  })
+
+  const payload = await readResponsePayload(response)
+  if (!response.ok) {
+    throwStructuredError(payload, response.status, requestUrl, request.model)
+  }
+
+  const data = payload as OpenAIImageGenerationResponse
+  const images = (data.data || [])
+    .reduce<ChatWorkbenchGeneratedImage[]>((items, item) => {
+      const url = typeof item.url === 'string'
+        ? item.url
+        : typeof item.b64_json === 'string'
+          ? `data:image/png;base64,${item.b64_json}`
+          : ''
+      if (!url) return items
+      items.push({
+        url,
+        revisedPrompt: typeof item.revised_prompt === 'string' ? item.revised_prompt : undefined
+      })
+      return items
+    }, [])
+
+  if (images.length === 0) {
+    throw new Error('No image returned')
+  }
+
+  return { images }
 }
