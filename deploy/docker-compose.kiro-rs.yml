@@ -1,0 +1,40 @@
+# =============================================================================
+# SparkAPI optional Kiro-RS sidecar
+# =============================================================================
+# Usage from deploy/:
+#   docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs up -d
+#
+# This file intentionally does not change the default SparkAPI startup path.
+# Kiro-RS is only started when the kiro-rs profile is enabled.
+# =============================================================================
+
+services:
+  kiro-rs:
+    image: ghcr.io/${KIRO_RS_IMAGE_OWNER:-hank9999}/kiro-rs:${KIRO_RS_IMAGE_TAG:-latest}
+    container_name: ${KIRO_RS_CONTAINER_NAME:-sparkapi-kiro-rs}
+    profiles:
+      - kiro-rs
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # Bind to localhost by default. Set KIRO_RS_BIND_HOST=0.0.0.0 only on a trusted host.
+      - "${KIRO_RS_BIND_HOST:-127.0.0.1}:${KIRO_RS_PORT:-8990}:8990"
+    volumes:
+      - ./kiro-rs/config:/app/config
+    environment:
+      # Used by the healthcheck only. Keep this value equal to config/config.json apiKey.
+      - KIRO_RS_API_KEY=${KIRO_RS_API_KEY:-sk-kiro-rs-change-me}
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -T 5 --header=\"x-api-key: $${KIRO_RS_API_KEY}\" -O /dev/null http://127.0.0.1:8990/v1/models",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

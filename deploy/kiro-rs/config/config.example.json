@@ -1,0 +1,9 @@
+{
+  "host": "0.0.0.0",
+  "port": 8990,
+  "apiKey": "sk-kiro-rs-change-me",
+  "region": "us-east-1",
+  "tlsBackend": "rustls",
+  "adminApiKey": "sk-kiro-rs-admin-change-me",
+  "loadBalancingMode": "priority"
+}

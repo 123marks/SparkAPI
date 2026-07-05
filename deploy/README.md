@@ -15,7 +15,10 @@ This directory contains files for deploying Sub2API on Linux servers.
 |------|-------------|
 | `docker-compose.yml` | Docker Compose configuration (named volumes) |
 | `docker-compose.local.yml` | Docker Compose configuration (local directories, easy migration) |
+| `docker-compose.kiro-rs.yml` | Optional Kiro-RS sidecar compose overlay |
+| `docker-compose.kiro-rs.local-src.yml` | Optional Kiro-RS overlay for building from local source |
 | `docker-deploy.sh` | **One-click Docker deployment script (recommended)** |
+| `start-kiro-rs-sidecar.ps1` | Windows helper for starting the optional Kiro-RS sidecar |
 | `.env.example` | Docker environment variables template |
 | `DOCKER.md` | Docker Hub documentation |
 | `install.sh` | One-click binary installation script |
@@ -23,6 +26,7 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `sub2api.service` | Systemd service unit file |
 | `sub2api-datamanagementd.service` | datamanagementd systemd service unit file |
 | `DATAMANAGEMENTD_CN.md` | datamanagementd 部署与联动说明（中文） |
+| `KIRO_RS_CN.md` | Kiro-RS sidecar 联动说明（中文） |
 | `config.example.yaml` | Example configuration file |
 
 ---
@@ -155,6 +159,31 @@ SELECT
 - 主进程固定探测 `/tmp/sub2api-datamanagement.sock`
 - Docker 场景下需把宿主机 Socket 挂载到容器内同路径
 - 详细步骤见：`deploy/DATAMANAGEMENTD_CN.md`
+
+### Kiro-RS sidecar
+
+SparkAPI can connect to Kiro-RS through the existing Anthropic API Key passthrough path.
+Kiro-RS should run as an optional sidecar on the same Docker network, then SparkAPI
+adds an Anthropic API Key account with `base_url=http://kiro-rs:8990` and
+`anthropic_passthrough=true`.
+
+```bash
+docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs up -d
+```
+
+Build Kiro-RS from local source:
+
+```bash
+docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml -f docker-compose.kiro-rs.local-src.yml --profile kiro-rs up -d --build
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1
+```
+
+Details: `deploy/KIRO_RS_CN.md`.
 
 ### Commands
 

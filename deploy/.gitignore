@@ -6,6 +6,9 @@
 data/
 postgres_data/
 redis_data/
+kiro-rs/config/config.json
+kiro-rs/config/credentials.json
+kiro-rs/config/*.local.json
 
 # Environment configuration (contains sensitive information)
 .env

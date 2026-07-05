@@ -1,0 +1,8 @@
+# Real Kiro-RS runtime files contain API keys and OAuth tokens.
+config.json
+credentials.json
+*.local.json
+
+!.gitignore
+!config.example.json
+!credentials.example.json

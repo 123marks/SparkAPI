@@ -1,0 +1,19 @@
+# =============================================================================
+# SparkAPI optional Kiro-RS local-source build overlay
+# =============================================================================
+# Use this together with docker-compose.kiro-rs.yml when you want Docker to build
+# Kiro-RS from a local source checkout instead of pulling ghcr.io/hank9999/kiro-rs.
+#
+# Default source path is tuned for this local layout:
+#   C:\Users\whw\Desktop\Sub2Api\sub2api\deploy
+#   C:\Users\whw\Desktop\CLIProxyAPI\kiro.rs-2026.3.1
+#
+# Override with KIRO_RS_SOURCE_DIR when the checkout is elsewhere.
+# =============================================================================
+
+services:
+  kiro-rs:
+    image: sparkapi/kiro-rs-local:${KIRO_RS_LOCAL_IMAGE_TAG:-dev}
+    build:
+      context: ${KIRO_RS_SOURCE_DIR:-../../../CLIProxyAPI/kiro.rs-2026.3.1}
+      dockerfile: Dockerfile

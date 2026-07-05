@@ -1,0 +1,19 @@
+{
+  "name": "Kiro-RS Claude Sidecar",
+  "platform": "anthropic",
+  "type": "apikey",
+  "concurrency": 1,
+  "credentials": {
+    "base_url": "http://kiro-rs:8990",
+    "api_key": "sk-kiro-rs-change-me",
+    "model_mapping": {
+      "claude-sonnet-4-6": "claude-sonnet-4-6",
+      "claude-sonnet-4-6-thinking": "claude-sonnet-4-6-thinking",
+      "claude-opus-4-6": "claude-opus-4-6",
+      "claude-opus-4-6-thinking": "claude-opus-4-6-thinking"
+    }
+  },
+  "extra": {
+    "anthropic_passthrough": true
+  }
+}
