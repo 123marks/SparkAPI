@@ -1,6 +1,11 @@
 # Kiro-RS Sidecar 联动说明
 
-Kiro-RS 是一个独立的 Anthropic Claude API 兼容代理。SparkAPI 已有 Anthropic API Key passthrough 能力，所以推荐把 Kiro-RS 作为同一 Docker 网络里的 sidecar 运行，再在 SparkAPI 后台添加一个 Anthropic API Key 账号指向它。
+Kiro-RS 是独立的 Anthropic Claude 兼容代理。SparkAPI 不需要每次启动都复制配置，也不应该让业务客户端直接打 Kiro-RS。正确方式是：
+
+1. Kiro-RS 在 Docker 里作为 sidecar 常驻运行。
+2. `deploy/kiro-rs/config` 通过 volume 挂载到容器内，配置会持久化。
+3. SparkAPI 后台添加一个 Anthropic API Key 账号，Base URL 指向 `http://kiro-rs:8990`。
+4. 之后统一从 SparkAPI 调 Claude 模型，账号分组、限流、统计、调度仍由 SparkAPI 管理。
 
 ## 目录
 
@@ -8,119 +13,161 @@ Kiro-RS 是一个独立的 Anthropic Claude API 兼容代理。SparkAPI 已有 A
 deploy/
   docker-compose.local.yml
   docker-compose.kiro-rs.yml
+  start-kiro-rs-sidecar.ps1
   kiro-rs/
     config/
       config.example.json
       credentials.example.json
-      config.json        # 本地创建，包含 Kiro-RS API Key，不提交
-      credentials.json   # 本地创建，包含 Kiro refresh token，不提交
+      config.json        # 首次启动自动创建，包含 Kiro-RS API Key，不提交
+      credentials.json   # 首次启动自动创建，填写 Kiro refresh token，不提交
     sparkapi-anthropic-account.example.json
 ```
 
-## 准备配置
+真实的 `config.json` 和 `credentials.json` 已被 `.gitignore` 忽略，里面有密钥和 refresh token，不要提交到 GitHub。
 
-在 `deploy/` 目录执行：
+## 首次配置
 
-```bash
-cp kiro-rs/config/config.example.json kiro-rs/config/config.json
-cp kiro-rs/config/credentials.example.json kiro-rs/config/credentials.json
-```
-
-Windows PowerShell：
+进入 `deploy` 目录：
 
 ```powershell
-Copy-Item .\kiro-rs\config\config.example.json .\kiro-rs\config\config.json
-Copy-Item .\kiro-rs\config\credentials.example.json .\kiro-rs\config\credentials.json
+cd C:\Users\whw\Desktop\Sub2Api\sub2api\deploy
 ```
 
-然后编辑：
-
-- `kiro-rs/config/config.json`
-  - `host` 必须保持 `0.0.0.0`，否则 SparkAPI 容器访问不到 Kiro-RS。
-  - `apiKey` 改成强随机值。
-  - `adminApiKey` 改成强随机值，或删除该字段关闭 Kiro-RS 管理面板。
-- `kiro-rs/config/credentials.json`
-  - 填入 Kiro refresh token。
-  - 多账号时使用数组格式，并用 `priority` 控制优先级。
-  - 需要代理时优先写到具体 credential 的 `proxyUrl`，避免所有账号共用一个出口。
-
-真实 `config.json`、`credentials.json` 已被 `.gitignore` 忽略，不要提交。
-
-## 启动
-
-本地目录部署：
-
-```bash
-docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs up -d
-```
-
-Windows PowerShell：
+首次运行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1
 ```
 
+脚本会自动创建缺失的：
+
+- `kiro-rs/config/config.json`
+- `kiro-rs/config/credentials.json`
+
+并且会自动把 `config.json` 里的默认 `apiKey` / `adminApiKey` 换成随机密钥。你只需要编辑一次 `credentials.json`，填入真实 Kiro refresh token。
+
+后续重启不要再复制 example 文件，直接运行启动命令即可。除非你手动删除了 `config.json` 或 `credentials.json`，否则脚本不会覆盖你已经填好的配置。
+
+## credentials.json 格式
+
+普通 Kiro 社交登录账号：
+
+```json
+[
+  {
+    "refreshToken": "你的完整 Kiro refresh token",
+    "expiresAt": "2026-12-31T00:00:00Z",
+    "authMethod": "social",
+    "machineId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "priority": 0
+  }
+]
+```
+
+IDC / External IdP 账号需要额外填写：
+
+```json
+[
+  {
+    "refreshToken": "你的完整 Kiro IDC refresh token",
+    "expiresAt": "2026-12-31T00:00:00Z",
+    "authMethod": "idc",
+    "clientId": "你的 IDC client id",
+    "clientSecret": "你的 IDC client secret",
+    "region": "us-east-1",
+    "machineId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "priority": 10
+  }
+]
+```
+
+多账号可以保留数组格式，通过 `priority` 控制优先级。临时不用的账号可以加：
+
+```json
+"disabled": true
+```
+
+启动脚本只校验启用中的账号，禁用示例里残留的占位符不会再阻止启动。
+
+如需给某个 Kiro 账号单独设置代理，优先写在对应 credential 的 `proxyUrl`，例如：
+
+```json
+"proxyUrl": "http://host.docker.internal:7890"
+```
+
+容器里不要写宿主机的 `127.0.0.1:7890`，应使用 `host.docker.internal:7890`。
+
+## 启动命令
+
+本地 Docker 部署 SparkAPI + Kiro-RS：
+
+```powershell
+cd C:\Users\whw\Desktop\Sub2Api\sub2api\deploy
+powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1
+```
+
+只启动 Kiro-RS，不启动 SparkAPI：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1 -NoStartSparkAPI
+```
+
+拉取最新 Kiro-RS 镜像后启动：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1 -Pull
+```
+
 如果你要二开 Kiro-RS 本体，并从本地源码构建：
 
-```bash
-docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml -f docker-compose.kiro-rs.local-src.yml --profile kiro-rs up -d --build
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1 -BuildLocal
 ```
 
-默认本地源码路径按 `C:\Users\whw\Desktop\CLIProxyAPI\kiro.rs-2026.3.1` 设计。路径不一致时，在 `.env` 里设置：
+默认本地源码路径按 `C:\Users\whw\Desktop\CLIProxyAPI\kiro.rs-2026.3.1` 设计。路径不同的话，在 `deploy/.env` 里设置：
 
 ```env
-KIRO_RS_SOURCE_DIR=/path/to/kiro.rs-2026.3.1
+KIRO_RS_SOURCE_DIR=C:\你的\kiro-rs\源码路径
 ```
-
-命名卷部署：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.kiro-rs.yml --profile kiro-rs up -d
-```
-
-查看日志：
-
-```bash
-docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs logs -f kiro-rs
-```
-
-默认宿主机只暴露 `127.0.0.1:8990`。如果你要让外部访问 Kiro-RS，显式设置 `KIRO_RS_BIND_HOST=0.0.0.0`，并务必用防火墙或反向代理鉴权保护。
 
 ## 在 SparkAPI 后台添加账号
 
-后台添加账号：
+在 SparkAPI 后台添加账号，不是每次改 Docker 配置：
 
 - 平台：`Anthropic`
 - 类型：`API Key`
 - Base URL：`http://kiro-rs:8990`
-- API Key：填写 `kiro-rs/config/config.json` 里的 `apiKey`
+- API Key：填写 `deploy/kiro-rs/config/config.json` 里的 `apiKey`
 - 开启 Anthropic passthrough
-- 按需要配置模型映射，例如 `claude-sonnet-4-6 -> claude-sonnet-4-6`
+- 按需要配置 Claude 模型映射，例如 `claude-sonnet-4-6 -> claude-sonnet-4-6`
 
-参考文件：`deploy/kiro-rs/sparkapi-anthropic-account.example.json`。
+可参考：
 
-如果你启用了 URL allowlist，需要允许内部 HTTP/private host，或把 `kiro-rs` 加入上游 host 白名单。
+```text
+deploy/kiro-rs/sparkapi-anthropic-account.example.json
+```
+
+如果后续移植上游 Kiro 平台支持，可以把它做成更像“一键 Kiro 账号”的表单；当前稳定接入方式是 Anthropic API Key + Kiro-RS Base URL。
 
 ## 验证
 
 宿主机验证 Kiro-RS：
 
-```bash
-curl http://127.0.0.1:8990/v1/models \
-  -H "x-api-key: sk-kiro-rs-change-me"
+```powershell
+curl.exe http://127.0.0.1:8990/v1/models -H "x-api-key: 你的 config.json apiKey"
 ```
 
-容器网络验证：
+容器网络验证 SparkAPI 能访问 Kiro-RS：
 
-```bash
-docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs exec sub2api wget -q -O - http://kiro-rs:8990/v1/models --header="x-api-key: sk-kiro-rs-change-me"
+```powershell
+docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs exec sub2api wget -q -O - http://kiro-rs:8990/v1/models --header="x-api-key: 你的 config.json apiKey"
 ```
 
-SparkAPI 账号测试成功后，请通过 SparkAPI 的统一 API 入口调用 Claude 模型，而不是让业务客户端直接打 Kiro-RS。这样用量统计、分组、限流和账号调度仍然由 SparkAPI 管理。
+注意：SparkAPI 账号里的 Base URL 不要写 `http://127.0.0.1:8990`。在 SparkAPI 容器内，`127.0.0.1` 指向 SparkAPI 自己，应写 `http://kiro-rs:8990`。
 
-## 常见问题
+## 安全注意
 
-- SparkAPI 里 base URL 不要写 `http://127.0.0.1:8990`，容器内的 `127.0.0.1` 指向 SparkAPI 自己。应写 `http://kiro-rs:8990`。
-- Kiro-RS 配置里的 `host` 不要写 `127.0.0.1`，容器外无法访问。应写 `0.0.0.0`。
-- 代理在容器里不能写宿主机 `127.0.0.1:7890`。如需访问宿主机代理，使用 `host.docker.internal:7890`。
-- `apiKey`、`adminApiKey`、refresh token 都是敏感信息，不要放进仓库。
+- 默认只把 Kiro-RS 暴露到宿主机 `127.0.0.1:8990`。
+- 只有在可信主机上才设置 `KIRO_RS_BIND_HOST=0.0.0.0`。
+- `apiKey`、`adminApiKey`、refresh token、client secret 都是敏感信息，不要提交仓库，不要截图发给别人。
+- 上游 sub2api 更新不能直接盲合并。当前 SparkAPI 有大量本地二开，建议只挑选 Kiro、计费、导入去重、并发清理等明确有价值的提交逐个移植。
