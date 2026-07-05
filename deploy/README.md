@@ -163,9 +163,9 @@ SELECT
 ### Kiro-RS sidecar
 
 SparkAPI can connect to Kiro-RS through the existing Anthropic API Key passthrough path.
-Kiro-RS should run as an optional sidecar on the same Docker network, then SparkAPI
-adds an Anthropic API Key account with `base_url=http://kiro-rs:8990` and
-`anthropic_passthrough=true`.
+Kiro-RS runs as an optional sidecar on the same Docker network. Add Kiro accounts
+in the Kiro-RS admin UI first, then add one Anthropic API Key account in SparkAPI
+with `base_url=http://kiro-rs:8990` and `anthropic_passthrough=true`.
 
 ```bash
 docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs up -d
@@ -182,6 +182,16 @@ Windows PowerShell:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1
 ```
+
+Kiro-RS admin UI:
+
+```text
+http://127.0.0.1:8990/admin
+```
+
+Use `deploy/kiro-rs/config/config.json` `adminApiKey` to log in. The startup
+helper can create an empty `credentials.json`, so the admin UI can start before
+any Kiro account has been added.
 
 Details: `deploy/KIRO_RS_CN.md`.
 

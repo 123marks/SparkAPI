@@ -1,11 +1,12 @@
 # Kiro-RS Sidecar 联动说明
 
-Kiro-RS 是独立的 Anthropic Claude 兼容代理。SparkAPI 不需要每次启动都复制配置，也不应该让业务客户端直接打 Kiro-RS。正确方式是：
+Kiro-RS 是独立的 Anthropic Claude 兼容代理，并且这个版本自带 `/admin` Web 管理面板。正确方式不是每次复制配置，也不是在 SparkAPI 里逐个维护 Kiro refresh token，而是：
 
 1. Kiro-RS 在 Docker 里作为 sidecar 常驻运行。
-2. `deploy/kiro-rs/config` 通过 volume 挂载到容器内，配置会持久化。
-3. SparkAPI 后台添加一个 Anthropic API Key 账号，Base URL 指向 `http://kiro-rs:8990`。
-4. 之后统一从 SparkAPI 调 Claude 模型，账号分组、限流、统计、调度仍由 SparkAPI 管理。
+2. 打开 `http://127.0.0.1:8990/admin`，在 Kiro-RS 面板里添加/删除/禁用 Kiro 账号。
+3. `deploy/kiro-rs/config` 通过 volume 挂载到容器内，账号配置会持久化。
+4. SparkAPI 后台添加一个 Anthropic API Key 上游，Base URL 指向 `http://kiro-rs:8990`。
+5. 之后统一从 SparkAPI 调 Claude 模型；Kiro 账号池由 Kiro-RS 管，SparkAPI 负责中转站侧的分组、限流、统计、渠道定价和用户侧 API。
 
 ## 目录
 
@@ -19,7 +20,7 @@ deploy/
       config.example.json
       credentials.example.json
       config.json        # 首次启动自动创建，包含 Kiro-RS API Key，不提交
-      credentials.json   # 首次启动自动创建，填写 Kiro refresh token，不提交
+      credentials.json   # 首次启动自动创建为空数组，后续由 Kiro-RS /admin 管理，不提交
     sparkapi-anthropic-account.example.json
 ```
 
@@ -44,11 +45,35 @@ powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1
 - `kiro-rs/config/config.json`
 - `kiro-rs/config/credentials.json`
 
-并且会自动把 `config.json` 里的默认 `apiKey` / `adminApiKey` 换成随机密钥。你只需要编辑一次 `credentials.json`，填入真实 Kiro refresh token。
+并且会自动把 `config.json` 里的默认 `apiKey` / `adminApiKey` 换成随机密钥。如果没有 `credentials.json`，脚本会创建一个空数组 `[]`，让 Kiro-RS 可以先启动管理面板。
 
 后续重启不要再复制 example 文件，直接运行启动命令即可。除非你手动删除了 `config.json` 或 `credentials.json`，否则脚本不会覆盖你已经填好的配置。
 
+## Kiro-RS 管理面板
+
+启动后打开：
+
+```text
+http://127.0.0.1:8990/admin
+```
+
+登录密钥填：
+
+```text
+deploy/kiro-rs/config/config.json 里的 adminApiKey
+```
+
+在这个页面里添加 Kiro 账号、批量导入、禁用账号、调整优先级、查看余额。也就是说，Kiro refresh token 应优先通过 Kiro-RS 前端管理，而不是每次手工复制 JSON。
+
+如果你想强制脚本在“至少已有一个真实 Kiro 账号”时才允许启动，可以加：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1 -RequireCredentials
+```
+
 ## credentials.json 格式
+
+正常情况下你不用手工编辑这个文件，直接在 Kiro-RS `/admin` 添加账号即可。下面格式只用于排查或离线导入。
 
 普通 Kiro 社交登录账号：
 
@@ -87,7 +112,7 @@ IDC / External IdP 账号需要额外填写：
 "disabled": true
 ```
 
-启动脚本只校验启用中的账号，禁用示例里残留的占位符不会再阻止启动。
+启动脚本只校验启用中的真实账号。缺少账号时仍允许启动 `/admin`；旧示例里残留的占位符会被自动禁用，避免挡住管理面板。
 
 如需给某个 Kiro 账号单独设置代理，优先写在对应 credential 的 `proxyUrl`，例如：
 
@@ -132,7 +157,7 @@ KIRO_RS_SOURCE_DIR=C:\你的\kiro-rs\源码路径
 
 ## 在 SparkAPI 后台添加账号
 
-在 SparkAPI 后台添加账号，不是每次改 Docker 配置：
+Kiro 账号添加到 Kiro-RS `/admin` 后，再在 SparkAPI 后台添加一个上游账号：
 
 - 平台：`Anthropic`
 - 类型：`API Key`
@@ -147,7 +172,7 @@ KIRO_RS_SOURCE_DIR=C:\你的\kiro-rs\源码路径
 deploy/kiro-rs/sparkapi-anthropic-account.example.json
 ```
 
-如果后续移植上游 Kiro 平台支持，可以把它做成更像“一键 Kiro 账号”的表单；当前稳定接入方式是 Anthropic API Key + Kiro-RS Base URL。
+这个账号代表“整个 Kiro-RS 账号池”，不是某一个 Kiro 账号。Kiro-RS 负责在它内部的 Kiro 账号之间调度，SparkAPI 只把 Kiro-RS 当成一个 Anthropic-compatible 上游。
 
 ## 验证
 
