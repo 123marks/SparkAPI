@@ -25,11 +25,19 @@ export interface ChatWorkbenchImageGenerationRequest {
   size?: string
   quality?: string
   n?: number
+  background?: 'auto' | 'opaque' | 'transparent'
+  moderation?: 'auto' | 'low'
+  outputFormat?: 'auto' | 'png' | 'jpeg' | 'webp'
+  outputCompression?: number
+  responseFormat?: 'auto' | 'b64_json' | 'url'
 }
 
 export interface ChatWorkbenchGeneratedImage {
   url: string
   revisedPrompt?: string
+  background?: string
+  outputFormat?: string
+  size?: string
 }
 
 export interface ChatWorkbenchImageGenerationResponse {
@@ -90,6 +98,9 @@ interface OpenAIImageGenerationResponse {
     url?: unknown
     b64_json?: unknown
     revised_prompt?: unknown
+    background?: unknown
+    output_format?: unknown
+    size?: unknown
   }>
 }
 
@@ -133,6 +144,43 @@ function buildChatRequestInit(request: ChatWorkbenchRequest, stream: boolean): R
       stream
     })
   }
+}
+
+function buildImageRequestBody(request: ChatWorkbenchImageGenerationRequest): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model: request.model,
+    prompt: request.prompt,
+    size: request.size || '1024x1024',
+    quality: request.quality || 'auto',
+    n: request.n ?? 1
+  }
+
+  if (request.background && request.background !== 'auto') {
+    body.background = request.background
+  }
+
+  if (request.moderation && request.moderation !== 'auto') {
+    body.moderation = request.moderation
+  }
+
+  if (request.outputFormat && request.outputFormat !== 'auto') {
+    body.output_format = request.outputFormat
+  }
+
+  if (
+    typeof request.outputCompression === 'number' &&
+    Number.isFinite(request.outputCompression) &&
+    request.outputFormat &&
+    ['jpeg', 'webp'].includes(request.outputFormat)
+  ) {
+    body.output_compression = Math.min(100, Math.max(0, Math.round(request.outputCompression)))
+  }
+
+  if (request.responseFormat && request.responseFormat !== 'auto') {
+    body.response_format = request.responseFormat
+  }
+
+  return body
 }
 
 async function readResponsePayload(response: Response): Promise<any> {
@@ -349,7 +397,11 @@ export async function sendChatWorkbenchMessageStream(
 ): Promise<ChatWorkbenchResponse> {
   const requestUrl = request.baseUrl?.trim() || '/v1/chat/completions'
   handlers.onStatus?.('connecting')
+  const waitingTimer = setTimeout(() => {
+    handlers.onStatus?.('waiting')
+  }, 1200)
   const response = await fetch(requestUrl, buildChatRequestInit(request, true))
+    .finally(() => clearTimeout(waitingTimer))
 
   if (!response.ok) {
     const payload = await readResponsePayload(response)
@@ -390,14 +442,7 @@ export async function sendChatWorkbenchImageGeneration(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${request.apiKey}`
     },
-    body: JSON.stringify({
-      model: request.model,
-      prompt: request.prompt,
-      size: request.size || '1024x1024',
-      quality: request.quality || 'auto',
-      n: request.n ?? 1,
-      response_format: 'b64_json'
-    })
+    body: JSON.stringify(buildImageRequestBody(request))
   })
 
   const payload = await readResponsePayload(response)
@@ -408,15 +453,20 @@ export async function sendChatWorkbenchImageGeneration(
   const data = payload as OpenAIImageGenerationResponse
   const images = (data.data || [])
     .reduce<ChatWorkbenchGeneratedImage[]>((items, item) => {
+      const outputFormat = typeof item.output_format === 'string' ? item.output_format : request.outputFormat || 'png'
+      const mimeSubtype = outputFormat === 'jpg' ? 'jpeg' : outputFormat
       const url = typeof item.url === 'string'
         ? item.url
         : typeof item.b64_json === 'string'
-          ? `data:image/png;base64,${item.b64_json}`
+          ? `data:image/${mimeSubtype};base64,${item.b64_json}`
           : ''
       if (!url) return items
       items.push({
         url,
-        revisedPrompt: typeof item.revised_prompt === 'string' ? item.revised_prompt : undefined
+        revisedPrompt: typeof item.revised_prompt === 'string' ? item.revised_prompt : undefined,
+        background: typeof item.background === 'string' ? item.background : undefined,
+        outputFormat: typeof item.output_format === 'string' ? item.output_format : undefined,
+        size: typeof item.size === 'string' ? item.size : request.size
       })
       return items
     }, [])

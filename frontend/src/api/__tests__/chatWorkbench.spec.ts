@@ -106,15 +106,19 @@ describe('sendChatWorkbenchMessage', () => {
     const jsonPromise = new Promise((resolve) => {
       resolveJson = resolve
     })
+    const onStatus = vi.fn()
+    const json = vi.fn().mockImplementation(() => {
+      expect(onStatus.mock.calls.map(([status]) => status)).toEqual(['connecting', 'waiting'])
+      return jsonPromise
+    })
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       headers: {
         get: vi.fn().mockReturnValue('application/json')
       },
-      json: vi.fn().mockReturnValue(jsonPromise)
+      json
     } as any)
-    const onStatus = vi.fn()
 
     const resultPromise = sendChatWorkbenchMessageStream({
       apiKey: 'sk-test',
@@ -125,16 +129,55 @@ describe('sendChatWorkbenchMessage', () => {
 
     await Promise.resolve()
 
-    expect(onStatus.mock.calls.map(([status]) => status)).toEqual(['connecting', 'waiting'])
-
     resolveJson({
       choices: [{ message: { content: 'full response' } }],
       model: 'gpt-json'
     })
     const result = await resultPromise
 
+    expect(json).toHaveBeenCalledTimes(1)
     expect(onStatus.mock.calls.map(([status]) => status)).toEqual(['connecting', 'waiting', 'finalizing'])
     expect(result.content).toBe('full response')
+  })
+  it('surfaces waiting status while the gateway has not returned response headers', async () => {
+    vi.useFakeTimers()
+    try {
+      let resolveFetch!: (value: unknown) => void
+      const fetchPromise = new Promise((resolve) => {
+        resolveFetch = resolve
+      })
+      global.fetch = vi.fn().mockReturnValue(fetchPromise)
+      const onStatus = vi.fn()
+
+      const resultPromise = sendChatWorkbenchMessageStream({
+        apiKey: 'sk-test',
+        baseUrl: '/v1/chat/completions',
+        model: 'gpt-slow',
+        messages: [{ role: 'user', content: 'ping' }]
+      }, { onStatus })
+
+      await vi.advanceTimersByTimeAsync(1200)
+
+      expect(onStatus.mock.calls.map(([status]) => status)).toEqual(['connecting', 'waiting'])
+
+      resolveFetch({
+        ok: true,
+        status: 200,
+        headers: {
+          get: vi.fn().mockReturnValue('application/json')
+        },
+        json: vi.fn().mockResolvedValue({
+          choices: [{ message: { content: 'late response' } }],
+          model: 'gpt-slow'
+        })
+      } as any)
+
+      const result = await resultPromise
+
+      expect(result.content).toBe('late response')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('extracts non-streaming Responses API output text', async () => {
@@ -180,20 +223,30 @@ describe('sendChatWorkbenchMessage', () => {
       model: 'gpt-image-2',
       prompt: 'draw a cat',
       size: '1024x1024',
-      quality: 'high'
+      quality: 'high',
+      background: 'transparent',
+      outputFormat: 'webp',
+      outputCompression: 70,
+      responseFormat: 'b64_json'
     })
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/v1/images/generations',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('"model":"gpt-image-2"')
-      })
-    )
+    const imageBody = JSON.parse((global.fetch as any).mock.calls[0][1].body)
+    expect(imageBody).toMatchObject({
+      model: 'gpt-image-2',
+      prompt: 'draw a cat',
+      size: '1024x1024',
+      quality: 'high',
+      n: 1,
+      background: 'transparent',
+      output_format: 'webp',
+      output_compression: 70,
+      response_format: 'b64_json'
+    })
     expect(result.images).toEqual([
       {
-        url: 'data:image/png;base64,aGVsbG8=',
-        revisedPrompt: 'draw a safer cat'
+        url: 'data:image/webp;base64,aGVsbG8=',
+        revisedPrompt: 'draw a safer cat',
+        size: '1024x1024'
       }
     ])
   })

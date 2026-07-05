@@ -129,7 +129,10 @@
             <div class="grid gap-3 sm:grid-cols-2">
               <div class="min-w-0">
                 <label class="input-label">{{ t('chatConsole.imageSettings.model') }}</label>
-                <input v-model="imageModel" data-test="image-model-input" class="input" autocomplete="off" />
+                <input v-model="imageModel" data-test="image-model-input" class="input" autocomplete="off" list="spark-image-models" />
+                <datalist id="spark-image-models">
+                  <option v-for="option in imageModelOptions" :key="option" :value="option" />
+                </datalist>
               </div>
               <div class="min-w-0">
                 <label class="input-label">{{ t('chatConsole.imageSettings.size') }}</label>
@@ -150,6 +153,43 @@
               <div class="min-w-0">
                 <label class="input-label">{{ t('chatConsole.imageSettings.count') }}</label>
                 <input v-model.number="imageCount" data-test="image-count-input" class="input" min="1" max="4" step="1" type="number" />
+              </div>
+              <div class="min-w-0">
+                <label class="input-label">{{ t('chatConsole.imageSettings.background') }}</label>
+                <select v-model="imageBackground" data-test="image-background-select" class="input">
+                  <option v-for="option in imageBackgroundOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="min-w-0">
+                <label class="input-label">{{ t('chatConsole.imageSettings.responseFormat') }}</label>
+                <select v-model="imageResponseFormat" data-test="image-response-format-select" class="input">
+                  <option v-for="option in imageResponseFormatOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="min-w-0">
+                <label class="input-label">{{ t('chatConsole.imageSettings.outputFormat') }}</label>
+                <select v-model="imageOutputFormat" data-test="image-output-format-select" class="input">
+                  <option v-for="option in imageOutputFormatOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="min-w-0">
+                <label class="input-label">{{ t('chatConsole.imageSettings.compression') }}</label>
+                <input
+                  v-model.number="imageOutputCompression"
+                  data-test="image-output-compression-input"
+                  class="input"
+                  min="0"
+                  max="100"
+                  step="5"
+                  type="number"
+                  :disabled="!usesImageCompression"
+                />
               </div>
             </div>
             <p class="input-hint mt-2">{{ t('chatConsole.imageSettings.hint') }}</p>
@@ -357,32 +397,47 @@
 
               <div
                 v-if="shouldShowActivity(message)"
-                class="mb-3 rounded-md border border-dashed border-gray-200 bg-white/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/40"
+                class="spark-chat-activity mb-3 rounded-md border border-gray-200 bg-white/80 px-3 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-900/50"
               >
-                <div class="flex items-center justify-between gap-3 text-xs">
-                  <div class="flex min-w-0 items-center gap-2 font-medium text-gray-700 dark:text-dark-100">
+                <div class="flex items-start justify-between gap-3 text-xs">
+                  <div class="flex min-w-0 items-start gap-3">
                     <span class="spark-chat-spinner" aria-hidden="true" />
-                    <span class="truncate">{{ activityTitle(message) }}</span>
+                    <div class="min-w-0">
+                      <div class="flex min-w-0 items-center gap-2 font-medium text-gray-800 dark:text-dark-100">
+                        <span class="truncate">{{ activityTitle(message) }}</span>
+                        <span v-if="message.streamedChars" class="spark-chat-live-dot" aria-hidden="true" />
+                      </div>
+                      <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-dark-400">
+                        {{ activityHint(message) }}
+                      </p>
+                    </div>
                   </div>
-                  <span class="flex-shrink-0 text-gray-400 dark:text-dark-500">{{ messageElapsedText(message) }}</span>
+                  <span class="flex-shrink-0 rounded bg-gray-100 px-2 py-0.5 text-gray-500 dark:bg-dark-800 dark:text-dark-300">
+                    {{ messageElapsedText(message) }}
+                  </span>
                 </div>
-                <div class="mt-2 grid grid-cols-4 gap-1">
+                <div class="mt-3 grid grid-cols-4 gap-1.5" :aria-label="t('chatConsole.activity.progressLabel')">
                   <span
                     v-for="step in streamStepOrder"
                     :key="step"
-                    class="h-1.5 rounded-full"
+                    class="h-1.5 rounded-full transition-colors"
                     :class="streamStepClass(message, step)"
                     :title="t(`chatConsole.streamStatus.${step}`)"
                   />
                 </div>
-                <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">
-                  {{ activityHint(message) }}
-                </p>
+                <div v-if="showThinkingSkeleton(message)" class="spark-chat-skeleton mt-3 space-y-2" aria-hidden="true">
+                  <span class="block h-2.5 w-11/12 rounded-full" />
+                  <span class="block h-2.5 w-8/12 rounded-full" />
+                  <span class="block h-2.5 w-5/12 rounded-full" />
+                </div>
               </div>
               <div
                 v-if="message.role === 'assistant'"
                 class="spark-chat-markdown break-words"
-                :class="message.content ? '' : 'text-gray-400 dark:text-dark-500'"
+                :class="[
+                  message.content ? '' : 'text-gray-400 dark:text-dark-500',
+                  isPendingAssistant(message) && message.content ? 'spark-chat-markdown-streaming' : ''
+                ]"
                 v-html="renderAssistantMessage(message)"
               />
               <div v-else class="whitespace-pre-wrap break-words">{{ message.content }}</div>
@@ -397,8 +452,13 @@
                     :alt="image.revisedPrompt || t('chatConsole.imageResultAlt')"
                     class="aspect-square w-full object-cover"
                   />
-                  <figcaption v-if="image.revisedPrompt" class="border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
-                    {{ image.revisedPrompt }}
+                  <figcaption v-if="image.revisedPrompt || image.outputFormat || image.size" class="border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    <div v-if="image.revisedPrompt">{{ image.revisedPrompt }}</div>
+                    <div v-if="image.outputFormat || image.size" class="mt-1 flex flex-wrap gap-2 text-[11px] uppercase text-gray-400 dark:text-dark-500">
+                      <span v-if="image.outputFormat">{{ image.outputFormat }}</span>
+                      <span v-if="image.size">{{ image.size }}</span>
+                      <span v-if="image.background">{{ image.background }}</span>
+                    </div>
                   </figcaption>
                 </figure>
               </div>
@@ -600,6 +660,10 @@ const imageModel = ref(localStorage.getItem(`${props.storageKey}_image_model`) |
 const imageSize = ref(localStorage.getItem(`${props.storageKey}_image_size`) || '1024x1024')
 const imageQuality = ref(localStorage.getItem(`${props.storageKey}_image_quality`) || 'auto')
 const imageCount = ref(Number(localStorage.getItem(`${props.storageKey}_image_count`) || '1'))
+const imageBackground = ref(localStorage.getItem(`${props.storageKey}_image_background`) || 'auto')
+const imageResponseFormat = ref(localStorage.getItem(`${props.storageKey}_image_response_format`) || 'auto')
+const imageOutputFormat = ref(localStorage.getItem(`${props.storageKey}_image_output_format`) || 'auto')
+const imageOutputCompression = ref(Number(localStorage.getItem(`${props.storageKey}_image_output_compression`) || '80'))
 const mode = ref<WorkbenchMode>(props.defaultMode)
 const runType = ref<RunType>('chat')
 const projectContext = ref('')
@@ -631,17 +695,38 @@ const runTypeOptions = computed(() => [
   { value: 'chat' as const, label: t('chatConsole.runTypes.chat') },
   { value: 'image' as const, label: t('chatConsole.runTypes.image') }
 ])
+const imageModelOptions = ['gpt-image-2', 'gpt-image-1', 'dall-e-3']
 const imageSizeOptions = computed(() => [
+  { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
   { value: '1024x1024', label: '1024 x 1024' },
   { value: '1024x1536', label: '1024 x 1536' },
   { value: '1536x1024', label: '1536 x 1024' },
-  { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) }
+  { value: '2048x2048', label: '2048 x 2048' },
+  { value: '2048x1152', label: '2048 x 1152' },
+  { value: '3840x2160', label: '3840 x 2160' },
+  { value: '2160x3840', label: '2160 x 3840' }
 ])
 const imageQualityOptions = computed(() => [
   { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
   { value: 'low', label: String(t('chatConsole.imageSettings.low')) },
   { value: 'medium', label: String(t('chatConsole.imageSettings.medium')) },
   { value: 'high', label: String(t('chatConsole.imageSettings.high')) }
+])
+const imageBackgroundOptions = computed(() => [
+  { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
+  { value: 'opaque', label: String(t('chatConsole.imageSettings.opaque')) },
+  { value: 'transparent', label: String(t('chatConsole.imageSettings.transparent')) }
+])
+const imageResponseFormatOptions = computed(() => [
+  { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
+  { value: 'b64_json', label: 'Base64 JSON' },
+  { value: 'url', label: 'URL' }
+])
+const imageOutputFormatOptions = computed(() => [
+  { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
+  { value: 'png', label: 'PNG' },
+  { value: 'jpeg', label: 'JPEG' },
+  { value: 'webp', label: 'WebP' }
 ])
 const streamStepOrder: StreamStatus[] = ['connecting', 'waiting', 'streaming', 'finalizing']
 
@@ -657,6 +742,7 @@ const canSend = computed(() => (
   model.value.trim() !== '' &&
   (draft.value.trim() !== '' || attachments.value.length > 0)
 ))
+const usesImageCompression = computed(() => ['jpeg', 'webp'].includes(imageOutputFormat.value))
 const maxFileSizeLabel = computed(() => formatBytes(maxFileBytes))
 const contentLayoutClass = computed(() => (
   props.layout === 'split'
@@ -772,6 +858,27 @@ watch(imageCount, (value) => {
   localStorage.setItem(`${props.storageKey}_image_count`, String(safeCount))
 })
 
+watch(imageBackground, (value) => {
+  localStorage.setItem(`${props.storageKey}_image_background`, value)
+})
+
+watch(imageResponseFormat, (value) => {
+  localStorage.setItem(`${props.storageKey}_image_response_format`, value)
+})
+
+watch(imageOutputFormat, (value) => {
+  localStorage.setItem(`${props.storageKey}_image_output_format`, value)
+})
+
+watch(imageOutputCompression, (value) => {
+  const safeCompression = clampImageCompression(value)
+  if (safeCompression !== value) {
+    imageOutputCompression.value = safeCompression
+    return
+  }
+  localStorage.setItem(`${props.storageKey}_image_output_compression`, String(safeCompression))
+})
+
 onMounted(() => {
   nowIntervalId = window.setInterval(() => {
     nowTick.value = Date.now()
@@ -819,12 +926,22 @@ function clampImageCount(value: unknown): number {
   return Math.min(4, Math.max(1, Math.round(numberValue)))
 }
 
+function clampImageCompression(value: unknown): number {
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue)) return 80
+  return Math.min(100, Math.max(0, Math.round(numberValue)))
+}
+
 function isPendingAssistant(message: UiMessage): boolean {
   return message.role === 'assistant' && message.kind !== 'error' && Boolean(message.status || message.activityStage)
 }
 
 function shouldShowActivity(message: UiMessage): boolean {
   return isPendingAssistant(message)
+}
+
+function showThinkingSkeleton(message: UiMessage): boolean {
+  return isPendingAssistant(message) && !message.content.trim()
 }
 
 function activityTitle(message: UiMessage): string {
@@ -1317,14 +1434,20 @@ async function sendMessage() {
       assistantMessage.activityStage = 'image-generating'
       assistantMessage.status = 'streaming'
       assistantMessage.updatedAt = Date.now()
+      const selectedImageModel = normalizeImageModel(imageModel.value || model.value)
+      const supportsAdvancedImageParams = selectedImageModel.toLowerCase().startsWith('gpt-image')
       const imageResponse = await sendChatWorkbenchImageGeneration({
         apiKey: apiKey.value.trim(),
         baseUrl: normalizeImagesRequestUrl(requestUrl.value),
-        model: normalizeImageModel(imageModel.value || model.value),
+        model: selectedImageModel,
         prompt: content,
         size: imageSize.value,
         quality: imageQuality.value,
-        n: clampImageCount(imageCount.value)
+        n: clampImageCount(imageCount.value),
+        background: supportsAdvancedImageParams ? normalizeImageBackground(selectedImageModel) : 'auto',
+        responseFormat: normalizeImageResponseFormat(selectedImageModel),
+        outputFormat: supportsAdvancedImageParams ? imageOutputFormat.value as 'auto' | 'png' | 'jpeg' | 'webp' : 'auto',
+        outputCompression: supportsAdvancedImageParams && usesImageCompression.value ? clampImageCompression(imageOutputCompression.value) : undefined
       })
       assistantMessage.content = String(t('chatConsole.imageGenerated', { count: imageResponse.images.length }))
       assistantMessage.images = imageResponse.images
@@ -1381,6 +1504,20 @@ async function sendMessage() {
 function normalizeImageModel(value: string): string {
   const current = value.trim()
   return current || 'gpt-image-2'
+}
+
+function normalizeImageBackground(imageModelName: string): 'auto' | 'opaque' | 'transparent' {
+  if (imageModelName.toLowerCase() === 'gpt-image-2' && imageBackground.value === 'transparent') {
+    return 'auto'
+  }
+  return imageBackground.value as 'auto' | 'opaque' | 'transparent'
+}
+
+function normalizeImageResponseFormat(imageModelName: string): 'auto' | 'b64_json' | 'url' {
+  if (imageModelName.toLowerCase().startsWith('gpt-image') && imageResponseFormat.value === 'url') {
+    return 'auto'
+  }
+  return imageResponseFormat.value as 'auto' | 'b64_json' | 'url'
 }
 
 function normalizeImagesRequestUrl(value: string): string {
@@ -1538,15 +1675,71 @@ function handleDraftKeydown(event: KeyboardEvent) {
   text-underline-offset: 2px;
 }
 
+.spark-chat-activity {
+  position: relative;
+  overflow: hidden;
+}
+
+.spark-chat-activity::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.65), transparent);
+  transform: translateX(-100%);
+  animation: spark-chat-scan 1.8s ease-in-out infinite;
+}
+
 .spark-chat-spinner {
+  position: relative;
   display: inline-block;
-  width: 0.625rem;
-  height: 0.625rem;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.125rem;
   flex-shrink: 0;
   border-radius: 9999px;
   border: 2px solid rgb(209 213 219);
   border-top-color: rgb(37 99 235);
-  animation: spark-chat-spin 0.8s linear infinite;
+  animation: spark-chat-spin 0.9s linear infinite;
+}
+
+.spark-chat-spinner::after {
+  content: '';
+  position: absolute;
+  inset: 0.1875rem;
+  border-radius: inherit;
+  background: rgb(37 99 235 / 0.24);
+  animation: spark-chat-pulse 1.3s ease-in-out infinite;
+}
+
+.spark-chat-live-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: rgb(16 185 129);
+  box-shadow: 0 0 0 0 rgb(16 185 129 / 0.45);
+  animation: spark-chat-live 1.2s ease-out infinite;
+}
+
+.spark-chat-skeleton span {
+  background: linear-gradient(90deg, rgb(229 231 235 / 0.8), rgb(243 244 246), rgb(229 231 235 / 0.8));
+  background-size: 220% 100%;
+  animation: spark-chat-skeleton 1.4s ease-in-out infinite;
+}
+
+.spark-chat-markdown-streaming :deep(p:last-child)::after,
+.spark-chat-markdown-streaming :deep(li:last-child)::after {
+  content: '';
+  display: inline-block;
+  width: 0.45rem;
+  height: 1em;
+  margin-left: 0.2rem;
+  border-radius: 1px;
+  background: rgb(37 99 235 / 0.7);
+  vertical-align: -0.12em;
+  animation: spark-chat-cursor 0.9s step-end infinite;
 }
 
 .dark .spark-chat-spinner {
@@ -1554,8 +1747,28 @@ function handleDraftKeydown(event: KeyboardEvent) {
   border-top-color: rgb(147 197 253);
 }
 
+.dark .spark-chat-spinner::after {
+  background: rgb(147 197 253 / 0.22);
+}
+
+.dark .spark-chat-skeleton span {
+  background: linear-gradient(90deg, rgb(55 65 81 / 0.75), rgb(75 85 99 / 0.75), rgb(55 65 81 / 0.75));
+  background-size: 220% 100%;
+}
+
+.dark .spark-chat-markdown-streaming :deep(p:last-child)::after,
+.dark .spark-chat-markdown-streaming :deep(li:last-child)::after {
+  background: rgb(147 197 253 / 0.75);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .spark-chat-spinner {
+  .spark-chat-activity::before,
+  .spark-chat-spinner,
+  .spark-chat-spinner::after,
+  .spark-chat-live-dot,
+  .spark-chat-skeleton span,
+  .spark-chat-markdown-streaming :deep(p:last-child)::after,
+  .spark-chat-markdown-streaming :deep(li:last-child)::after {
     animation: none;
   }
 }
@@ -1563,6 +1776,50 @@ function handleDraftKeydown(event: KeyboardEvent) {
 @keyframes spark-chat-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes spark-chat-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+
+@keyframes spark-chat-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  55%, 100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes spark-chat-live {
+  70% {
+    box-shadow: 0 0 0 0.35rem rgb(16 185 129 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+  }
+}
+
+@keyframes spark-chat-skeleton {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes spark-chat-cursor {
+  50% {
+    opacity: 0;
   }
 }
 </style>

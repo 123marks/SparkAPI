@@ -406,6 +406,8 @@ describe('SparkChatConsole', () => {
 
     expect(wrapper.text()).toContain('chatConsole.streamStatus.connecting')
     expect(wrapper.text()).toContain('chatConsole.assistant')
+    expect(wrapper.find('.spark-chat-activity').exists()).toBe(true)
+    expect(wrapper.find('.spark-chat-skeleton').exists()).toBe(true)
 
     resolveStream({ content: 'done' })
     await flushPromises()
@@ -413,9 +415,10 @@ describe('SparkChatConsole', () => {
 
   it('updates the assistant response as streamed deltas arrive', async () => {
     sendChatWorkbenchMessageStreamMock.mockImplementation(async (_request, handlers) => {
-      handlers.onDelta('Hello ')
+      handlers.onStatus?.('streaming')
+      handlers.onDelta?.('Hello ')
       await Promise.resolve()
-      handlers.onDelta('world')
+      handlers.onDelta?.('world')
       return { content: 'Hello world' }
     })
 
@@ -482,6 +485,10 @@ describe('SparkChatConsole', () => {
     await wrapper.get('[data-test="image-size-select"]').setValue('1536x1024')
     await wrapper.get('[data-test="image-quality-select"]').setValue('high')
     await wrapper.get('[data-test="image-count-input"]').setValue(3)
+    await wrapper.get('[data-test="image-background-select"]').setValue('transparent')
+    await wrapper.get('[data-test="image-response-format-select"]').setValue('b64_json')
+    await wrapper.get('[data-test="image-output-format-select"]').setValue('webp')
+    await wrapper.get('[data-test="image-output-compression-input"]').setValue(65)
     await wrapper.get('input[type="password"]').setValue('sk-image')
     await wrapper.findAll('textarea').at(-1)!.setValue('draw a clean operations dashboard')
     await wrapper.get('form').trigger('submit')
@@ -491,7 +498,39 @@ describe('SparkChatConsole', () => {
       model: 'gpt-image-1',
       size: '1536x1024',
       quality: 'high',
-      n: 3
+      n: 3,
+      background: 'transparent',
+      responseFormat: 'b64_json',
+      outputFormat: 'webp',
+      outputCompression: 65
+    }))
+  })
+  it('downgrades image parameters that gpt-image-2 does not support', async () => {
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'image_compat_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.get('[data-test="run-type-image"]').trigger('click')
+    await wrapper.get('[data-test="image-model-input"]').setValue('gpt-image-2')
+    await wrapper.get('[data-test="image-background-select"]').setValue('transparent')
+    await wrapper.get('[data-test="image-response-format-select"]').setValue('url')
+    await wrapper.get('input[type="password"]').setValue('sk-image')
+    await wrapper.findAll('textarea').at(-1)!.setValue('draw an operations status panel')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(sendChatWorkbenchImageGenerationMock).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'gpt-image-2',
+      background: 'auto',
+      responseFormat: 'auto'
     }))
   })
 
