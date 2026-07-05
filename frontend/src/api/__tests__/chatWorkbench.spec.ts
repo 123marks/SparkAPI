@@ -137,6 +137,29 @@ describe('sendChatWorkbenchMessage', () => {
     expect(result.content).toBe('full response')
   })
 
+  it('extracts non-streaming Responses API output text', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: vi.fn().mockReturnValue('application/json')
+      },
+      json: vi.fn().mockResolvedValue({
+        output_text: 'response api text',
+        model: 'gpt-responses'
+      })
+    } as any)
+
+    const result = await sendChatWorkbenchMessageStream({
+      apiKey: 'sk-test',
+      baseUrl: '/v1/responses',
+      model: 'gpt-responses',
+      messages: [{ role: 'user', content: 'ping' }]
+    })
+
+    expect(result.content).toBe('response api text')
+  })
+
   it('normalizes OpenAI-compatible image generation responses', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

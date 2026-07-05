@@ -76,6 +76,13 @@ interface OpenAIChatChoice {
 interface OpenAIChatResponse {
   choices?: OpenAIChatChoice[]
   model?: string
+  output_text?: unknown
+  output?: Array<{
+    content?: Array<{
+      type?: string
+      text?: unknown
+    }>
+  }>
 }
 
 interface OpenAIImageGenerationResponse {
@@ -191,6 +198,39 @@ function extractStreamingDelta(payload: any): string {
     return payload.delta
   }
 
+  if (payload.type === 'response.output_text.done' && typeof payload.text === 'string') {
+    return ''
+  }
+
+  if (payload.type === 'content_block_delta' && typeof payload.delta?.text === 'string') {
+    return payload.delta.text
+  }
+
+  if (payload.type === 'message_delta' && typeof payload.delta?.text === 'string') {
+    return payload.delta.text
+  }
+
+  return ''
+}
+
+function extractResponseContent(payload: any): string {
+  if (!payload || typeof payload !== 'object') return ''
+
+  const chatChoice = Array.isArray(payload.choices) ? payload.choices[0] as OpenAIChatChoice | undefined : undefined
+  const chatContent = normalizeAssistantContent(chatChoice?.message?.content)
+  if (chatContent) return chatContent
+
+  const outputText = normalizeAssistantContent(payload.output_text)
+  if (outputText) return outputText
+
+  if (Array.isArray(payload.output)) {
+    return payload.output
+      .flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
+      .map((part: any) => normalizeAssistantContent(part?.text))
+      .filter(Boolean)
+      .join('\n')
+  }
+
   return ''
 }
 
@@ -230,6 +270,7 @@ async function parseStreamingResponse(
   let buffer = ''
   let content = ''
   let model: string | undefined
+  let sawDelta = false
 
   const handleBlock = (block: string) => {
     const data = parseSSEData(block)
@@ -249,6 +290,7 @@ async function parseStreamingResponse(
     const delta = extractStreamingDelta(payload)
     if (!delta) return
     content += delta
+    sawDelta = true
     handlers.onStatus?.('streaming')
     handlers.onDelta?.(delta)
   }
@@ -261,6 +303,15 @@ async function parseStreamingResponse(
     const parsed = parseSSEBlocks(buffer)
     parsed.blocks.forEach(handleBlock)
     buffer = parsed.remainder
+
+    if (!sawDelta && buffer.includes('\n')) {
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.trim().startsWith('data:')) continue
+        handleBlock(line)
+      }
+    }
   }
 
   buffer += decoder.decode()
@@ -281,7 +332,7 @@ export async function sendChatWorkbenchMessage(request: ChatWorkbenchRequest): P
   }
 
   const data = payload as OpenAIChatResponse
-  const content = normalizeAssistantContent(data.choices?.[0]?.message?.content)
+  const content = extractResponseContent(data)
   if (!content) {
     throw new Error('Empty assistant response')
   }
@@ -306,6 +357,7 @@ export async function sendChatWorkbenchMessageStream(
   }
 
   if (isEventStreamResponse(response)) {
+    handlers.onStatus?.('waiting')
     const streamed = await parseStreamingResponse(response, handlers)
     if (!streamed.content) {
       throw new Error('Empty assistant response')
@@ -316,7 +368,7 @@ export async function sendChatWorkbenchMessageStream(
   handlers.onStatus?.('waiting')
   const payload = await readResponsePayload(response)
   const data = payload as OpenAIChatResponse
-  const content = normalizeAssistantContent(data.choices?.[0]?.message?.content)
+  const content = extractResponseContent(data)
   if (!content) {
     throw new Error('Empty assistant response')
   }

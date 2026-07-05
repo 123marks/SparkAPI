@@ -377,6 +377,7 @@ describe('SparkChatConsole', () => {
     expect(request.messages[0].content).toContain('Total accounts: 3')
     expect(request.messages[0].content).toContain('error=1')
     expect(request.messages[0].content).toContain('Group VIP')
+    expect(request.messages[0].content).toContain('Proxy #10')
     expect(request.messages[0].content).toContain('proxy connect failed')
   })
 
@@ -437,6 +438,61 @@ describe('SparkChatConsole', () => {
 
     expect(wrapper.text()).toContain('Hello world')
     expect(wrapper.text()).not.toContain('chatConsole.streamStatus.connecting')
+  })
+
+  it('sends the current user prompt only once', async () => {
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'no_duplicate_prompt_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.get('input[type="password"]').setValue('sk-no-duplicate')
+    await wrapper.findAll('textarea').at(-1)!.setValue('diagnose gateway 502')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const request = sendChatWorkbenchMessageStreamMock.mock.calls[0][0]
+    const userPrompts = request.messages.filter((message: any) => message.role === 'user' && message.content === 'diagnose gateway 502')
+    expect(userPrompts).toHaveLength(1)
+    expect(request.messages.at(-1)).toEqual({ role: 'user', content: 'diagnose gateway 502' })
+  })
+
+  it('passes configurable image generation settings to the image endpoint', async () => {
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'image_settings_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.get('[data-test="run-type-image"]').trigger('click')
+    await wrapper.get('[data-test="image-model-input"]').setValue('gpt-image-1')
+    await wrapper.get('[data-test="image-size-select"]').setValue('1536x1024')
+    await wrapper.get('[data-test="image-quality-select"]').setValue('high')
+    await wrapper.get('[data-test="image-count-input"]').setValue(3)
+    await wrapper.get('input[type="password"]').setValue('sk-image')
+    await wrapper.findAll('textarea').at(-1)!.setValue('draw a clean operations dashboard')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(sendChatWorkbenchImageGenerationMock).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'gpt-image-1',
+      size: '1536x1024',
+      quality: 'high',
+      n: 3
+    }))
   })
 
   it('renders assistant Markdown without exposing raw emphasis markers', async () => {
