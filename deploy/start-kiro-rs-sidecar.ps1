@@ -298,6 +298,9 @@ try {
     }
 
     $env:KIRO_RS_API_KEY = [string]$config.apiKey
+    $env:KIRO_RS_INTERNAL_BASE_URL = "http://kiro-rs:8990"
+    $env:KIRO_RS_PUBLIC_ADMIN_URL = "http://127.0.0.1:8990/admin"
+    $env:KIRO_RS_SPARKAPI_ACCOUNT_BASE_URL = "http://kiro-rs:8990"
 
     $services = @()
     if (-not $NoStartSparkAPI) {
@@ -329,6 +332,7 @@ try {
     Write-Host "Kiro-RS admin login key: value from kiro-rs/config/config.json adminApiKey"
     Write-Host "SparkAPI account base_url: http://kiro-rs:8990"
     Write-Host "SparkAPI account api_key: value from kiro-rs/config/config.json apiKey"
+    Write-Host "SparkAPI status panel: Accounts -> More Actions -> Kiro-RS Admin"
     Write-Host "Flow: add Kiro accounts in Kiro-RS /admin, then connect SparkAPI to Kiro-RS as one Anthropic-compatible upstream."
     Write-Host "Config is persisted under deploy/kiro-rs/config. Do not copy example files again after editing."
 } finally {

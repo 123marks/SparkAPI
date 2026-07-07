@@ -149,6 +149,14 @@ services:
       - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
 
       # =======================================================================
+      # Optional Kiro-RS Sidecar Status
+      # =======================================================================
+      - KIRO_RS_INTERNAL_BASE_URL=${KIRO_RS_INTERNAL_BASE_URL:-http://kiro-rs:8990}
+      - KIRO_RS_PUBLIC_ADMIN_URL=${KIRO_RS_PUBLIC_ADMIN_URL:-http://127.0.0.1:8990/admin}
+      - KIRO_RS_SPARKAPI_ACCOUNT_BASE_URL=${KIRO_RS_SPARKAPI_ACCOUNT_BASE_URL:-http://kiro-rs:8990}
+      - KIRO_RS_API_KEY=${KIRO_RS_API_KEY:-}
+
+      # =======================================================================
       # Image Generation Stream & Concurrency
       # =======================================================================
       # OpenAI HTTP upstream protocol/timeout

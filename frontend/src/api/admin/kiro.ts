@@ -28,6 +28,19 @@ export interface KiroTokenInfo {
   [key: string]: unknown
 }
 
+export interface KiroSidecarStatus {
+  configured: boolean
+  healthy: boolean
+  internal_base_url: string
+  public_admin_url: string
+  sparkapi_account_base_url: string
+  api_key_configured: boolean
+  models_count: number
+  last_checked_at: string
+  status_code: number
+  message: string
+}
+
 export async function generateAuthUrl(payload: {
   proxy_id?: number
   provider?: string
@@ -80,10 +93,16 @@ export async function importToken(payload: {
   return data
 }
 
+export async function getSidecarStatus(): Promise<KiroSidecarStatus> {
+  const { data } = await apiClient.get<KiroSidecarStatus>('/admin/kiro/sidecar/status')
+  return data
+}
+
 export default {
   generateAuthUrl,
   generateIDCAuthUrl,
   exchangeCode,
   refreshToken,
-  importToken
+  importToken,
+  getSidecarStatus
 }

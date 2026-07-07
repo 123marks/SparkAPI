@@ -374,6 +374,7 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 func registerKiroOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	kiro := admin.Group("/kiro")
 	{
+		kiro.GET("/sidecar/status", h.Admin.KiroSidecar.GetStatus)
 		kiro.POST("/oauth/auth-url", h.Admin.KiroOAuth.GenerateAuthURL)
 		kiro.POST("/oauth/idc-auth-url", h.Admin.KiroOAuth.GenerateIDCAuthURL)
 		kiro.POST("/oauth/exchange-code", h.Admin.KiroOAuth.ExchangeCode)

@@ -137,6 +137,19 @@
                       </span>
                       <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
                     </button>
+                    <button class="account-tools-menu-item" @click="openKiroSidecarPanel">
+                      <span class="account-tools-menu-icon bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300">
+                        <Icon name="server" size="sm" />
+                      </span>
+                      <span class="flex-1 text-left">{{ t('admin.accounts.kiroSidecarTitle') }}</span>
+                      <span
+                        v-if="kiroSidecarStatus"
+                        :class="[
+                          'h-2 w-2 rounded-full',
+                          kiroSidecarStatus.healthy ? 'bg-emerald-500' : 'bg-amber-500'
+                        ]"
+                      />
+                    </button>
 
                     <div class="my-2 border-t border-gray-100 dark:border-gray-700"></div>
                     <div class="px-2 py-2">
@@ -398,6 +411,102 @@
     </ConfirmDialog>
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
+    <ConfirmDialog
+      :show="showKiroSidecarPanel"
+      :title="t('admin.accounts.kiroSidecarTitle')"
+      :message="t('admin.accounts.kiroSidecarDesc')"
+      :confirm-text="t('common.refresh')"
+      :cancel-text="t('common.close')"
+      @confirm="refreshKiroSidecarStatus"
+      @cancel="showKiroSidecarPanel = false"
+    >
+      <div class="space-y-4">
+        <div
+          v-if="kiroSidecarLoading"
+          class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300"
+        >
+          <Icon name="refresh" size="sm" class="animate-spin" />
+          <span>{{ t('admin.accounts.kiroSidecarChecking') }}</span>
+        </div>
+        <div
+          v-else-if="kiroSidecarStatus"
+          :class="[
+            'rounded-md border px-3 py-3',
+            kiroSidecarStatus.healthy
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200'
+              : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200'
+          ]"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 text-sm font-semibold">
+                <Icon :name="kiroSidecarStatus.healthy ? 'checkCircle' : 'exclamationTriangle'" size="sm" />
+                <span>{{ kiroSidecarStatus.healthy ? t('admin.accounts.kiroSidecarHealthy') : t('admin.accounts.kiroSidecarUnhealthy') }}</span>
+              </div>
+              <p class="mt-1 break-words text-xs opacity-90">{{ kiroSidecarStatus.message }}</p>
+            </div>
+            <span class="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-950/30 dark:text-gray-200">
+              {{ t('admin.accounts.kiroSidecarModelCount', { count: kiroSidecarStatus.models_count }) }}
+            </span>
+          </div>
+        </div>
+        <div v-else class="rounded-md border border-gray-200 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+          {{ t('admin.accounts.kiroSidecarNotChecked') }}
+        </div>
+
+        <div class="grid gap-3 text-sm">
+          <div class="kiro-sidecar-field">
+            <span class="kiro-sidecar-label">{{ t('admin.accounts.kiroSidecarAdminUrl') }}</span>
+            <div class="kiro-sidecar-value-row">
+              <code class="kiro-sidecar-code">{{ kiroSidecarStatus?.public_admin_url || 'http://127.0.0.1:8990/admin' }}</code>
+              <button class="kiro-sidecar-icon-btn" :title="t('common.copy')" @click="copyKiroSidecarText(kiroSidecarStatus?.public_admin_url || 'http://127.0.0.1:8990/admin')">
+                <Icon name="copy" size="xs" />
+              </button>
+              <a
+                class="kiro-sidecar-icon-btn"
+                :href="kiroSidecarStatus?.public_admin_url || 'http://127.0.0.1:8990/admin'"
+                target="_blank"
+                rel="noopener noreferrer"
+                :title="t('admin.accounts.kiroSidecarOpenAdmin')"
+              >
+                <Icon name="externalLink" size="xs" />
+              </a>
+            </div>
+          </div>
+          <div class="kiro-sidecar-field">
+            <span class="kiro-sidecar-label">{{ t('admin.accounts.kiroSidecarSparkBaseUrl') }}</span>
+            <div class="kiro-sidecar-value-row">
+              <code class="kiro-sidecar-code">{{ kiroSidecarStatus?.sparkapi_account_base_url || 'http://kiro-rs:8990' }}</code>
+              <button class="kiro-sidecar-icon-btn" :title="t('common.copy')" @click="copyKiroSidecarText(kiroSidecarStatus?.sparkapi_account_base_url || 'http://kiro-rs:8990')">
+                <Icon name="copy" size="xs" />
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.kiroSidecarBaseUrlHint') }}</p>
+          </div>
+          <div class="kiro-sidecar-field">
+            <span class="kiro-sidecar-label">{{ t('admin.accounts.kiroSidecarInternalUrl') }}</span>
+            <div class="kiro-sidecar-value-row">
+              <code class="kiro-sidecar-code">{{ kiroSidecarStatus?.internal_base_url || 'http://kiro-rs:8990' }}</code>
+              <button class="kiro-sidecar-icon-btn" :title="t('common.copy')" @click="copyKiroSidecarText(kiroSidecarStatus?.internal_base_url || 'http://kiro-rs:8990')">
+                <Icon name="copy" size="xs" />
+              </button>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 text-xs">
+            <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              {{ t('admin.accounts.kiroSidecarApiKeyConfigured') }}:
+              {{ kiroSidecarStatus?.api_key_configured ? t('common.yes') : t('common.no') }}
+            </span>
+            <span v-if="kiroSidecarStatus?.status_code" class="rounded-md bg-gray-100 px-2 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              HTTP {{ kiroSidecarStatus.status_code }}
+            </span>
+            <span v-if="kiroSidecarStatus?.last_checked_at" class="rounded-md bg-gray-100 px-2 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              {{ formatDateTime(new Date(kiroSidecarStatus.last_checked_at), { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </ConfirmDialog>
   </AppLayout>
 </template>
 
@@ -411,6 +520,7 @@ import { adminAPI } from '@/api/admin'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
+import { useClipboard } from '@/composables/useClipboard'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -439,10 +549,12 @@ import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfil
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+import type { KiroSidecarStatus } from '@/api/admin/kiro'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const { copyToClipboard } = useClipboard()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
@@ -507,6 +619,9 @@ const showTest = ref(false)
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
+const showKiroSidecarPanel = ref(false)
+const kiroSidecarLoading = ref(false)
+const kiroSidecarStatus = ref<KiroSidecarStatus | null>(null)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
@@ -888,7 +1003,8 @@ const isAnyModalOpen = computed(() => {
     showStats.value ||
     showSchedulePanel.value ||
     showErrorPassthrough.value ||
-    showTLSFingerprintProfiles.value
+    showTLSFingerprintProfiles.value ||
+    showKiroSidecarPanel.value
   )
 })
 
@@ -1051,6 +1167,28 @@ const openErrorPassthrough = () => {
 const openTLSFingerprintProfiles = () => {
   closeAccountToolsDropdown()
   showTLSFingerprintProfiles.value = true
+}
+
+const refreshKiroSidecarStatus = async () => {
+  if (kiroSidecarLoading.value) return
+  kiroSidecarLoading.value = true
+  try {
+    kiroSidecarStatus.value = await adminAPI.kiro.getSidecarStatus()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.kiroSidecarLoadFailed'))
+  } finally {
+    kiroSidecarLoading.value = false
+  }
+}
+
+const openKiroSidecarPanel = () => {
+  closeAccountToolsDropdown()
+  showKiroSidecarPanel.value = true
+  refreshKiroSidecarStatus()
+}
+
+const copyKiroSidecarText = (text: string) => {
+  copyToClipboard(text, t('common.copied'))
 }
 
 const syncPendingListChanges = async () => {
@@ -1800,5 +1938,25 @@ onUnmounted(() => {
 
 .account-tools-menu-icon {
   @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md;
+}
+
+.kiro-sidecar-field {
+  @apply rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/60;
+}
+
+.kiro-sidecar-label {
+  @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400;
+}
+
+.kiro-sidecar-value-row {
+  @apply flex min-w-0 items-center gap-2;
+}
+
+.kiro-sidecar-code {
+  @apply min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-xs text-gray-700 dark:bg-gray-950/40 dark:text-gray-200;
+}
+
+.kiro-sidecar-icon-btn {
+  @apply inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-gray-200 text-gray-500 transition-colors hover:bg-white hover:text-primary-600 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-primary-300;
 }
 </style>
