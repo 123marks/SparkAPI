@@ -5,7 +5,7 @@
   "concurrency": 1,
   "credentials": {
     "base_url": "http://kiro-rs:8990",
-    "api_key": "sk-kiro-rs-change-me",
+    "api_key": "csk_sparkapi-client-key-change-me",
     "model_mapping": {
       "claude-sonnet-4-6": "claude-sonnet-4-6",
       "claude-sonnet-4-6-thinking": "claude-sonnet-4-6-thinking",

@@ -10,6 +10,7 @@ export interface ChatWorkbenchRequest {
   messages: ChatWorkbenchMessage[]
   temperature?: number
   maxTokens?: number
+  signal?: AbortSignal
 }
 
 export interface ChatWorkbenchResponse {
@@ -30,6 +31,7 @@ export interface ChatWorkbenchImageGenerationRequest {
   outputFormat?: 'auto' | 'png' | 'jpeg' | 'webp'
   outputCompression?: number
   responseFormat?: 'auto' | 'b64_json' | 'url'
+  signal?: AbortSignal
 }
 
 export interface ChatWorkbenchGeneratedImage {
@@ -134,8 +136,10 @@ function buildChatRequestInit(request: ChatWorkbenchRequest, stream: boolean): R
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Accept: stream ? 'text/event-stream, application/json' : 'application/json',
       Authorization: `Bearer ${request.apiKey}`
     },
+    signal: createRequestSignal(request.signal, stream ? 300000 : 120000),
     body: JSON.stringify({
       model: request.model,
       messages: request.messages,
@@ -144,6 +148,37 @@ function buildChatRequestInit(request: ChatWorkbenchRequest, stream: boolean): R
       stream
     })
   }
+}
+
+function createTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
+  if (typeof AbortSignal !== 'undefined' && typeof (AbortSignal as any).timeout === 'function') {
+    return (AbortSignal as any).timeout(timeoutMs)
+  }
+  return undefined
+}
+
+function createRequestSignal(externalSignal: AbortSignal | undefined, timeoutMs: number): AbortSignal | undefined {
+  const timeoutSignal = createTimeoutSignal(timeoutMs)
+  if (!externalSignal) return timeoutSignal
+  if (!timeoutSignal) return externalSignal
+  if (externalSignal.aborted) return externalSignal
+
+  const abortSignal = AbortSignal as typeof AbortSignal & {
+    any?: (signals: AbortSignal[]) => AbortSignal
+  }
+  if (typeof abortSignal.any === 'function') {
+    return abortSignal.any([externalSignal, timeoutSignal])
+  }
+
+  const controller = new AbortController()
+  const abort = () => {
+    if (!controller.signal.aborted) {
+      controller.abort()
+    }
+  }
+  externalSignal.addEventListener('abort', abort, { once: true })
+  timeoutSignal.addEventListener('abort', abort, { once: true })
+  return controller.signal
 }
 
 function buildImageRequestBody(request: ChatWorkbenchImageGenerationRequest): Record<string, unknown> {
@@ -440,8 +475,10 @@ export async function sendChatWorkbenchImageGeneration(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       Authorization: `Bearer ${request.apiKey}`
     },
+    signal: createRequestSignal(request.signal, 300000),
     body: JSON.stringify(buildImageRequestBody(request))
   })
 

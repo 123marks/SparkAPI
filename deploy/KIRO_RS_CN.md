@@ -19,8 +19,9 @@ deploy/
     config/
       config.example.json
       credentials.example.json
-      config.json        # 首次启动自动创建，包含 Kiro-RS API Key，不提交
+      config.json        # 首次启动自动创建，包含 Kiro-RS admin/bootstrap key，不提交
       credentials.json   # 首次启动自动创建为空数组，后续由 Kiro-RS /admin 管理，不提交
+      client_api_keys.json # 自动生成 SparkAPI sidecar 的 csk_ client key，不提交
     sparkapi-anthropic-account.example.json
 ```
 
@@ -45,7 +46,7 @@ powershell -ExecutionPolicy Bypass -File .\start-kiro-rs-sidecar.ps1
 - `kiro-rs/config/config.json`
 - `kiro-rs/config/credentials.json`
 
-并且会自动把 `config.json` 里的默认 `apiKey` / `adminApiKey` 换成随机密钥。如果没有 `credentials.json`，脚本会创建一个空数组 `[]`，让 Kiro-RS 可以先启动管理面板。
+并且会自动把 `config.json` 里的默认 `apiKey` / `adminApiKey` 换成随机密钥。如果没有 `credentials.json`，脚本会创建一个空数组 `[]`，让 Kiro-RS 可以先启动管理面板。同时脚本会在 `client_api_keys.json` 里生成或复用一条名为 `SparkAPI sidecar` 的 `csk_` client key，供 SparkAPI 调用 Kiro-RS `/v1` 接口。
 
 后续重启不要再复制 example 文件，直接运行启动命令即可。除非你手动删除了 `config.json` 或 `credentials.json`，否则脚本不会覆盖你已经填好的配置。
 
@@ -162,7 +163,7 @@ Kiro 账号添加到 Kiro-RS `/admin` 后，再在 SparkAPI 后台添加一个�
 - 平台：`Anthropic`
 - 类型：`API Key`
 - Base URL：`http://kiro-rs:8990`
-- API Key：填写 `deploy/kiro-rs/config/config.json` 里的 `apiKey`
+- API Key：填写 `deploy/kiro-rs/config/client_api_keys.json` 里名为 `SparkAPI sidecar` 的 `csk_` client key
 - 开启 Anthropic passthrough
 - 按需要配置 Claude 模型映射，例如 `claude-sonnet-4-6 -> claude-sonnet-4-6`
 
@@ -179,13 +180,13 @@ deploy/kiro-rs/sparkapi-anthropic-account.example.json
 宿主机验证 Kiro-RS：
 
 ```powershell
-curl.exe http://127.0.0.1:8990/v1/models -H "x-api-key: 你的 config.json apiKey"
+curl.exe http://127.0.0.1:8990/v1/models -H "x-api-key: 你的 csk_ client key"
 ```
 
 容器网络验证 SparkAPI 能访问 Kiro-RS：
 
 ```powershell
-docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs exec sub2api wget -q -O - http://kiro-rs:8990/v1/models --header="x-api-key: 你的 config.json apiKey"
+docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profile kiro-rs exec sub2api wget -q -O - http://kiro-rs:8990/v1/models --header="x-api-key: 你的 csk_ client key"
 ```
 
 注意：SparkAPI 账号里的 Base URL 不要写 `http://127.0.0.1:8990`。在 SparkAPI 容器内，`127.0.0.1` 指向 SparkAPI 自己，应写 `http://kiro-rs:8990`。
@@ -194,5 +195,5 @@ docker compose -f docker-compose.local.yml -f docker-compose.kiro-rs.yml --profi
 
 - 默认只把 Kiro-RS 暴露到宿主机 `127.0.0.1:8990`。
 - 只有在可信主机上才设置 `KIRO_RS_BIND_HOST=0.0.0.0`。
-- `apiKey`、`adminApiKey`、refresh token、client secret 都是敏感信息，不要提交仓库，不要截图发给别人。
+- `apiKey`、`adminApiKey`、`csk_` client key、refresh token、client secret 都是敏感信息，不要提交仓库，不要截图发给别人。
 - 上游 sub2api 更新不能直接盲合并。当前 SparkAPI 有大量本地二开，建议只挑选 Kiro、计费、导入去重、并发清理等明确有价值的提交逐个移植。

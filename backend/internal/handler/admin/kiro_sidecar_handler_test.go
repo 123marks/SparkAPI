@@ -15,7 +15,7 @@ import (
 func TestKiroSidecarHandlerGetStatusHealthyDoesNotLeakAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	const secret = "sk-kiro-rs-secret-value"
+	const secret = "csk_sparkapiSecretValueForTest123"
 	var receivedKey string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/models", r.URL.Path)
@@ -99,7 +99,7 @@ func TestKiroSidecarHandlerGetStatusReportsUpstreamError(t *testing.T) {
 
 	t.Setenv("KIRO_RS_INTERNAL_BASE_URL", strings.TrimRight(upstream.URL, "/")+"/")
 	t.Setenv("KIRO_RS_PUBLIC_ADMIN_URL", "")
-	t.Setenv("KIRO_RS_API_KEY", "sk-kiro-rs-secret-value")
+	t.Setenv("KIRO_RS_API_KEY", "csk_sparkapiSecretValueForTest123")
 
 	handler := NewKiroSidecarHandler()
 	handler.client = upstream.Client()

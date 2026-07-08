@@ -192,7 +192,10 @@ http://127.0.0.1:8990/admin
 
 Use `deploy/kiro-rs/config/config.json` `adminApiKey` to log in. The startup
 helper can create an empty `credentials.json`, so the admin UI can start before
-any Kiro account has been added.
+any Kiro account has been added. For SparkAPI upstream calls, use the dedicated
+Kiro-RS client key named `SparkAPI sidecar` in
+`deploy/kiro-rs/config/client_api_keys.json`; do not use `config.json` `apiKey`
+as the SparkAPI upstream key.
 
 SparkAPI also shows a read-only sidecar diagnostic panel in:
 
@@ -202,8 +205,8 @@ Admin -> Accounts -> More Actions -> Kiro-RS Admin
 
 This panel checks `/v1/models`, opens the Kiro-RS admin URL, and shows the
 Docker-internal Base URL to use for the SparkAPI Anthropic-compatible upstream.
-It only reports whether `KIRO_RS_API_KEY` is configured; it never returns the
-actual key to the browser.
+It only reports whether `KIRO_RS_API_KEY` is configured with a Kiro-RS client
+key; it never returns the actual key to the browser.
 
 Details: `deploy/KIRO_RS_CN.md`.
 

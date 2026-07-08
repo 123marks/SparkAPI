@@ -8,6 +8,8 @@ postgres_data/
 redis_data/
 kiro-rs/config/config.json
 kiro-rs/config/credentials.json
+kiro-rs/config/client_api_keys.json
+kiro-rs/config/traces.db*
 kiro-rs/config/*.local.json
 
 # Environment configuration (contains sensitive information)

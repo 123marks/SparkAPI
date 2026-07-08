@@ -180,6 +180,33 @@ describe('sendChatWorkbenchMessage', () => {
     }
   })
 
+  it('wires external abort signals into streaming requests', async () => {
+    const controller = new AbortController()
+    global.fetch = vi.fn().mockImplementation((_url, init: RequestInit) => (
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'))
+        }, { once: true })
+      })
+    ))
+
+    const resultPromise = sendChatWorkbenchMessageStream({
+      apiKey: 'sk-test',
+      baseUrl: '/v1/chat/completions',
+      model: 'gpt-slow',
+      messages: [{ role: 'user', content: 'ping' }],
+      signal: controller.signal
+    })
+
+    await Promise.resolve()
+    const requestInit = (global.fetch as any).mock.calls[0][1] as RequestInit
+    expect(requestInit.signal).toBeDefined()
+
+    controller.abort()
+
+    await expect(resultPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(requestInit.signal?.aborted).toBe(true)
+  })
   it('extracts non-streaming Responses API output text', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

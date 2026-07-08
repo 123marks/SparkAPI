@@ -23,8 +23,9 @@ services:
     volumes:
       - ./kiro-rs/config:/app/config
     environment:
-      # Used by the healthcheck only. Keep this value equal to config/config.json apiKey.
-      - KIRO_RS_API_KEY=${KIRO_RS_API_KEY:-sk-kiro-rs-change-me}
+      # Used by the healthcheck only. This must be a Kiro-RS client key from
+      # config/client_api_keys.json, not config/config.json apiKey.
+      - KIRO_RS_API_KEY=${KIRO_RS_API_KEY:-csk_sparkapi-client-key-change-me}
       - TZ=${TZ:-Asia/Shanghai}
     networks:
       - sub2api-network

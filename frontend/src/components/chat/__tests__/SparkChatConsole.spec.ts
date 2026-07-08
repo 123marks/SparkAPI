@@ -443,6 +443,42 @@ describe('SparkChatConsole', () => {
     expect(wrapper.text()).not.toContain('chatConsole.streamStatus.connecting')
   })
 
+  it('can cancel a slow active gateway request', async () => {
+    sendChatWorkbenchMessageStreamMock.mockImplementation((request) => (
+      new Promise((_resolve, reject) => {
+        request.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'))
+        }, { once: true })
+      })
+    ))
+
+    const wrapper = mount(SparkChatConsole, {
+      props: {
+        storageKey: 'cancel_chat_console'
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.get('input[type="password"]').setValue('sk-cancel')
+    await wrapper.findAll('textarea').at(-1)!.setValue('hello')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const request = sendChatWorkbenchMessageStreamMock.mock.calls[0][0]
+    expect(request.signal).toBeDefined()
+    expect(wrapper.get('[data-test="active-request-cancel"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="active-request-cancel"]').trigger('click')
+    await flushPromises()
+
+    expect(request.signal.aborted).toBe(true)
+    expect(wrapper.text()).toContain('chatConsole.requestCancelled')
+  })
   it('sends the current user prompt only once', async () => {
     const wrapper = mount(SparkChatConsole, {
       props: {

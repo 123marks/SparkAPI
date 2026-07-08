@@ -7,7 +7,8 @@
     @dragleave.prevent="handleConsoleDragLeave"
     @drop.prevent="handleFileDrop"
   >
-    <header class="flex flex-col gap-3 border-b border-gray-200 p-4 dark:border-dark-700 sm:flex-row sm:items-start sm:justify-between">
+    <header class="flex flex-col gap-3 border-b border-gray-200 bg-white/95 p-4 dark:border-dark-700 dark:bg-dark-900/95">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
         <div class="flex items-center gap-2">
           <Icon name="chat" size="sm" class="text-primary-500" />
@@ -24,10 +25,35 @@
           <Icon name="refresh" size="sm" class="mr-1" />
           {{ t('chatConsole.reset') }}
         </button>
-        <button type="button" class="btn btn-primary btn-sm" :disabled="sending || !canSend" @click="sendMessage">
-          <Icon v-if="!sending" name="arrowRight" size="sm" class="mr-1" />
-          {{ sending ? currentAssistantStatus : t('chatConsole.send') }}
+        <button
+          v-if="sending"
+          type="button"
+          data-test="active-request-cancel-header"
+          class="btn btn-secondary btn-sm border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-900/20"
+          @click="cancelActiveRequest"
+        >
+          <Icon name="ban" size="sm" class="mr-1" />
+          {{ t('chatConsole.stop') }}
         </button>
+        <button v-else type="button" class="btn btn-primary btn-sm" :disabled="!canSend" @click="sendMessage">
+          <Icon name="arrowRight" size="sm" class="mr-1" />
+          {{ t('chatConsole.send') }}
+        </button>
+      </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-dark-300">
+        <span class="inline-flex max-w-full items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 dark:bg-dark-800">
+          <Icon name="server" size="xs" />
+          <span class="truncate">{{ activeEndpointLabel }}</span>
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 dark:bg-dark-800">
+          <Icon :name="runType === 'image' ? 'sparkles' : 'brain'" size="xs" />
+          {{ sending ? currentAssistantStatus : activeRunSummary }}
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 dark:bg-dark-800">
+          <Icon name="document" size="xs" />
+          {{ t('chatConsole.contextBudget', { files: attachments.length, tools: selectedTools.length }) }}
+        </span>
       </div>
     </header>
 
@@ -158,6 +184,14 @@
                 <label class="input-label">{{ t('chatConsole.imageSettings.background') }}</label>
                 <select v-model="imageBackground" data-test="image-background-select" class="input">
                   <option v-for="option in imageBackgroundOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="min-w-0">
+                <label class="input-label">{{ t('chatConsole.imageSettings.moderation') }}</label>
+                <select v-model="imageModeration" data-test="image-moderation-select" class="input">
+                  <option v-for="option in imageModerationOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
@@ -343,7 +377,7 @@
         </section>
       </aside>
 
-      <main class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <main class="relative flex min-h-0 flex-1 flex-col overflow-hidden lg:order-1">
         <div
           v-if="isDragging"
           class="absolute inset-3 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-primary-400 bg-primary-50/95 text-primary-800 shadow-sm dark:border-primary-500 dark:bg-primary-950/95 dark:text-primary-100"
@@ -355,20 +389,23 @@
           </div>
         </div>
 
-        <div ref="conversationRef" class="min-h-0 flex-1 space-y-4 overflow-auto p-4">
+        <div ref="conversationRef" class="spark-chat-thread min-h-0 flex-1 space-y-5 overflow-auto bg-gray-50/40 p-4 dark:bg-dark-950/20">
           <div
             v-for="message in visibleMessages"
             :key="message.id"
-            class="flex"
+            class="spark-chat-turn flex items-start gap-3"
             :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
           >
+            <div
+              v-if="message.role === 'assistant'"
+              class="spark-chat-avatar mt-1 border border-primary-100 bg-white text-primary-600 shadow-sm dark:border-primary-900/50 dark:bg-dark-900 dark:text-primary-300"
+              aria-hidden="true"
+            >
+              <Icon name="sparkles" size="sm" />
+            </div>
             <article
-              class="max-w-[min(780px,94%)] rounded-lg border px-4 py-3 text-sm leading-6"
-              :class="message.kind === 'error'
-                ? 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-100'
-                : message.role === 'user'
-                ? 'border-primary-200 bg-primary-50 text-primary-950 dark:border-primary-900/50 dark:bg-primary-900/20 dark:text-primary-100'
-                : 'border-gray-200 bg-gray-50 text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-100'"
+              class="spark-chat-message-panel max-w-[min(820px,100%)] rounded-lg border px-4 py-3 text-sm leading-6"
+              :class="messagePanelClass(message)"
             >
               <div class="mb-2 flex items-center justify-between gap-3 text-xs font-medium text-gray-500 dark:text-dark-400">
                 <div class="flex min-w-0 items-center gap-2 uppercase">
@@ -469,6 +506,13 @@
                 {{ t('chatConsole.outputMeta', { chars: message.content.length }) }}
               </div>
             </article>
+            <div
+              v-if="message.role === 'user'"
+              class="spark-chat-avatar mt-1 bg-primary-600 text-white shadow-sm dark:bg-primary-500"
+              aria-hidden="true"
+            >
+              <Icon name="user" size="sm" />
+            </div>
           </div>
 
           <div v-if="visibleMessages.length === 0" class="flex h-full items-center justify-center">
@@ -483,7 +527,7 @@
           </div>
         </div>
 
-        <form class="border-t border-gray-200 p-4 dark:border-dark-700" @submit.prevent="sendMessage">
+        <form class="spark-chat-composer border-t border-gray-200 bg-white/95 p-4 dark:border-dark-700 dark:bg-dark-900/95" @submit.prevent="sendMessage">
           <div class="flex flex-col gap-3">
             <div v-if="attachments.length > 0" class="flex flex-wrap gap-2">
               <span
@@ -498,9 +542,20 @@
                 </button>
               </span>
             </div>
+            <div v-if="selectedTools.length > 0" class="flex flex-wrap items-center gap-2 text-xs">
+              <span class="font-medium text-gray-500 dark:text-dark-400">{{ t('chatConsole.loadedTools') }}</span>
+              <span
+                v-for="tool in selectedTools"
+                :key="`composer-tool-${tool.id}`"
+                class="inline-flex max-w-full items-center gap-1 rounded-md border border-primary-100 bg-primary-50 px-2 py-1 text-primary-700 dark:border-primary-900/40 dark:bg-primary-900/20 dark:text-primary-200"
+              >
+                <Icon :name="tool.category === 'mcp' ? 'link' : tool.category === 'diagnostic' ? 'server' : 'brain'" size="xs" />
+                <span class="truncate">{{ tool.name }}</span>
+              </span>
+            </div>
             <textarea
               v-model="draft"
-              class="input min-h-[92px] resize-y"
+              class="input min-h-[86px] max-h-[220px] resize-y rounded-xl bg-white px-4 py-3 shadow-inner dark:bg-dark-950/60"
               :placeholder="t('chatConsole.promptPlaceholder')"
               @keydown="handleDraftKeydown"
             />
@@ -510,6 +565,10 @@
                 <span v-if="attachments.length > 0"> - {{ t('chatConsole.attachedCount', { count: attachments.length }) }}</span>
               </div>
               <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="btn btn-secondary" :disabled="sending" @click="openFilePicker">
+                  <Icon name="upload" size="sm" class="mr-1" />
+                  {{ t('chatConsole.chooseFiles') }}
+                </button>
                 <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-dark-700 dark:bg-dark-800">
                   <button
                     v-for="option in runTypeOptions"
@@ -526,8 +585,19 @@
                     {{ option.label }}
                   </button>
                 </div>
-                <button class="btn btn-primary" type="submit" :disabled="sending || !canSend">
-                  {{ sending ? currentAssistantStatus : t('chatConsole.send') }}
+                <button
+                  v-if="sending"
+                  class="btn btn-secondary min-w-[108px] border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-900/20"
+                  type="button"
+                  data-test="active-request-cancel"
+                  @click="cancelActiveRequest"
+                >
+                  <Icon name="ban" size="sm" class="mr-1" />
+                  {{ t('chatConsole.stop') }}
+                </button>
+                <button v-else class="btn btn-primary min-w-[108px]" type="submit" :disabled="!canSend">
+                  <Icon name="arrowRight" size="sm" class="mr-1" />
+                  {{ t('chatConsole.send') }}
                 </button>
               </div>
             </div>
@@ -566,7 +636,7 @@ interface UiMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
-  kind?: 'normal' | 'error'
+  kind?: 'normal' | 'error' | 'cancelled'
   status?: StreamStatus
   activityStage?: ActivityStage
   startedAt?: number
@@ -661,6 +731,7 @@ const imageSize = ref(localStorage.getItem(`${props.storageKey}_image_size`) || 
 const imageQuality = ref(localStorage.getItem(`${props.storageKey}_image_quality`) || 'auto')
 const imageCount = ref(Number(localStorage.getItem(`${props.storageKey}_image_count`) || '1'))
 const imageBackground = ref(localStorage.getItem(`${props.storageKey}_image_background`) || 'auto')
+const imageModeration = ref(localStorage.getItem(`${props.storageKey}_image_moderation`) || 'auto')
 const imageResponseFormat = ref(localStorage.getItem(`${props.storageKey}_image_response_format`) || 'auto')
 const imageOutputFormat = ref(localStorage.getItem(`${props.storageKey}_image_output_format`) || 'auto')
 const imageOutputCompression = ref(Number(localStorage.getItem(`${props.storageKey}_image_output_compression`) || '80'))
@@ -683,6 +754,8 @@ const selectedSavedKeyId = ref('')
 const savedApiKeyLoadError = ref('')
 const toolSearch = ref('')
 const selectedToolIds = ref<string[]>([])
+const requestCancelledByUser = ref(false)
+let activeRequestController: AbortController | null = null
 let nowIntervalId: number | undefined
 
 const modeOptions = computed(() => [
@@ -717,6 +790,10 @@ const imageBackgroundOptions = computed(() => [
   { value: 'opaque', label: String(t('chatConsole.imageSettings.opaque')) },
   { value: 'transparent', label: String(t('chatConsole.imageSettings.transparent')) }
 ])
+const imageModerationOptions = computed(() => [
+  { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
+  { value: 'low', label: String(t('chatConsole.imageSettings.low')) }
+])
 const imageResponseFormatOptions = computed(() => [
   { value: 'auto', label: String(t('chatConsole.imageSettings.auto')) },
   { value: 'b64_json', label: 'Base64 JSON' },
@@ -731,6 +808,16 @@ const imageOutputFormatOptions = computed(() => [
 const streamStepOrder: StreamStatus[] = ['connecting', 'waiting', 'streaming', 'finalizing']
 
 const visibleMessages = computed(() => messages.value)
+const activeEndpointLabel = computed(() => (
+  runType.value === 'image'
+    ? normalizeImagesRequestUrl(requestUrl.value)
+    : requestUrl.value.trim() || '/v1/chat/completions'
+))
+const activeRunSummary = computed(() => {
+  const modeLabel = modeOptions.value.find((option) => option.value === mode.value)?.label || mode.value
+  const runTypeLabel = runTypeOptions.value.find((option) => option.value === runType.value)?.label || runType.value
+  return `${runTypeLabel} / ${modeLabel}`
+})
 const currentAssistantStatus = computed(() => {
   const activeAssistant = [...messages.value].reverse().find((message) => message.role === 'assistant' && message.status)
   return activeAssistant?.status
@@ -746,12 +833,12 @@ const usesImageCompression = computed(() => ['jpeg', 'webp'].includes(imageOutpu
 const maxFileSizeLabel = computed(() => formatBytes(maxFileBytes))
 const contentLayoutClass = computed(() => (
   props.layout === 'split'
-    ? 'grid min-h-0 flex-1 gap-0 lg:grid-cols-[360px,minmax(0,1fr)]'
+    ? 'grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1fr),340px]'
     : 'flex min-h-0 flex-1 flex-col'
 ))
 const settingsPanelClass = computed(() => (
   props.layout === 'split'
-    ? 'flex min-h-0 flex-col gap-4 overflow-auto border-b border-gray-200 p-4 dark:border-dark-700 lg:border-b-0 lg:border-r'
+    ? 'flex min-h-0 flex-col gap-4 overflow-auto border-b border-gray-200 bg-gray-50/60 p-4 dark:border-dark-700 dark:bg-dark-950/30 lg:order-2 lg:border-b-0 lg:border-l'
     : 'flex max-h-[280px] flex-col gap-3 overflow-auto border-b border-gray-200 p-4 dark:border-dark-700'
 ))
 const sessionsStorageKey = computed(() => `${props.storageKey}_sessions`)
@@ -862,6 +949,10 @@ watch(imageBackground, (value) => {
   localStorage.setItem(`${props.storageKey}_image_background`, value)
 })
 
+watch(imageModeration, (value) => {
+  localStorage.setItem(`${props.storageKey}_image_moderation`, value)
+})
+
 watch(imageResponseFormat, (value) => {
   localStorage.setItem(`${props.storageKey}_image_response_format`, value)
 })
@@ -890,6 +981,10 @@ onMounted(() => {
 onUnmounted(() => {
   if (nowIntervalId !== undefined) {
     window.clearInterval(nowIntervalId)
+  }
+  if (activeRequestController && !activeRequestController.signal.aborted) {
+    requestCancelledByUser.value = true
+    activeRequestController.abort()
   }
 })
 
@@ -978,6 +1073,22 @@ function streamStepClass(message: UiMessage, step: StreamStatus): string {
   if (stepRank < activeRank) return 'bg-primary-400 dark:bg-primary-500'
   if (stepRank === activeRank) return 'bg-primary-600 dark:bg-primary-300'
   return 'bg-gray-200 dark:bg-dark-700'
+}
+
+function messagePanelClass(message: UiMessage): string {
+  if (message.kind === 'error') {
+    return 'w-full border-red-200 bg-red-50 text-red-950 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-100'
+  }
+
+  if (message.kind === 'cancelled') {
+    return 'w-full border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-100'
+  }
+
+  if (message.role === 'user') {
+    return 'border-primary-200 bg-primary-50 text-primary-950 dark:border-primary-900/50 dark:bg-primary-900/20 dark:text-primary-100'
+  }
+
+  return 'w-full border-gray-200 bg-white text-gray-800 shadow-sm dark:border-dark-700 dark:bg-dark-900 dark:text-dark-100'
 }
 
 function buildSessionTitle(content: string): string {
@@ -1398,6 +1509,14 @@ async function scrollToBottom() {
 async function sendMessage() {
   if (!canSend.value || sending.value) return
 
+  if (activeRequestController && !activeRequestController.signal.aborted) {
+    activeRequestController.abort()
+  }
+
+  const requestController = new AbortController()
+  activeRequestController = requestController
+  requestCancelledByUser.value = false
+
   const content = draft.value.trim() || t('chatConsole.defaultFileQuestion')
   const requestHistory = buildCompletedHistorySnapshot()
   const startedAt = Date.now()
@@ -1445,9 +1564,11 @@ async function sendMessage() {
         quality: imageQuality.value,
         n: clampImageCount(imageCount.value),
         background: supportsAdvancedImageParams ? normalizeImageBackground(selectedImageModel) : 'auto',
+        moderation: supportsAdvancedImageParams ? imageModeration.value as 'auto' | 'low' : 'auto',
         responseFormat: normalizeImageResponseFormat(selectedImageModel),
         outputFormat: supportsAdvancedImageParams ? imageOutputFormat.value as 'auto' | 'png' | 'jpeg' | 'webp' : 'auto',
-        outputCompression: supportsAdvancedImageParams && usesImageCompression.value ? clampImageCompression(imageOutputCompression.value) : undefined
+        outputCompression: supportsAdvancedImageParams && usesImageCompression.value ? clampImageCompression(imageOutputCompression.value) : undefined,
+        signal: requestController.signal
       })
       assistantMessage.content = String(t('chatConsole.imageGenerated', { count: imageResponse.images.length }))
       assistantMessage.images = imageResponse.images
@@ -1462,7 +1583,8 @@ async function sendMessage() {
         model: model.value.trim(),
         temperature: temperature.value,
         messages: requestMessages,
-        maxTokens: 2000
+        maxTokens: 2000,
+        signal: requestController.signal
       }, {
         onStatus: (status) => {
           assistantMessage.status = status
@@ -1476,7 +1598,13 @@ async function sendMessage() {
           scrollToBottom()
         }
       })
-      assistantMessage.content = normalizeAssistantOutput(response.content || assistantMessage.content)
+      const normalizedContent = normalizeAssistantOutput(response.content || assistantMessage.content)
+      if ((assistantMessage.streamedChars || 0) === 0 && normalizedContent) {
+        await revealAssistantContent(assistantMessage, normalizedContent, requestController.signal)
+      } else {
+        assistantMessage.content = normalizedContent
+        assistantMessage.streamedChars = assistantMessage.content.length
+      }
       assistantMessage.status = undefined
       assistantMessage.activityStage = undefined
       assistantMessage.completedAt = Date.now()
@@ -1486,21 +1614,76 @@ async function sendMessage() {
     upsertActiveSession()
     await scrollToBottom()
   } catch (error: any) {
-    const errorContent = formatChatError(error)
-    assistantMessage.kind = 'error'
-    assistantMessage.content = errorContent
+    const requestWasCancelled = isAbortError(error)
+    assistantMessage.kind = requestWasCancelled ? 'cancelled' : 'error'
+    assistantMessage.content = requestWasCancelled
+      ? String(t(requestCancelledByUser.value ? 'chatConsole.requestCancelled' : 'chatConsole.requestTimedOut'))
+      : formatChatError(error)
     assistantMessage.status = undefined
     assistantMessage.activityStage = undefined
     assistantMessage.completedAt = Date.now()
     assistantMessage.updatedAt = assistantMessage.completedAt
     assistantMessage.images = undefined
-    appStore.showError(error?.message || t('chatConsole.sendFailed'))
+    if (!requestWasCancelled) {
+      appStore.showError(error?.message || t('chatConsole.sendFailed'))
+    }
     await scrollToBottom()
   } finally {
     sending.value = false
+    if (activeRequestController === requestController) {
+      activeRequestController = null
+    }
   }
 }
 
+function shouldAnimateResponseReveal(): boolean {
+  if (import.meta.env.MODE === 'test') return false
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return false
+  return !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+function waitForRevealFrame(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException('Aborted', 'AbortError'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const frameId = window.requestAnimationFrame(() => {
+      if (signal.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'))
+        return
+      }
+      resolve()
+    })
+    signal.addEventListener('abort', () => {
+      window.cancelAnimationFrame(frameId)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+  })
+}
+
+async function revealAssistantContent(message: UiMessage, content: string, signal: AbortSignal) {
+  if (!shouldAnimateResponseReveal() || content.length < 80) {
+    message.content = content
+    message.streamedChars = content.length
+    message.updatedAt = Date.now()
+    return
+  }
+
+  message.status = 'streaming'
+  message.activityStage = 'streaming'
+  const chunkSize = content.length > 2400 ? 96 : content.length > 900 ? 56 : 32
+  for (let index = 0; index < content.length; index += chunkSize) {
+    if (signal.aborted) {
+      throw new DOMException('Aborted', 'AbortError')
+    }
+    message.content = content.slice(0, Math.min(index + chunkSize, content.length))
+    message.streamedChars = message.content.length
+    message.updatedAt = Date.now()
+    scrollToBottom()
+    await waitForRevealFrame(signal)
+  }
+}
 function normalizeImageModel(value: string): string {
   const current = value.trim()
   return current || 'gpt-image-2'
@@ -1528,6 +1711,20 @@ function normalizeImagesRequestUrl(value: string): string {
   return current
     .replace(/\/v1\/chat\/completions$/, '/v1/images/generations')
     .replace(/\/chat\/completions$/, '/images/generations')
+}
+
+function cancelActiveRequest() {
+  if (!activeRequestController || activeRequestController.signal.aborted) return
+  requestCancelledByUser.value = true
+  activeRequestController.abort()
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const name = 'name' in error ? String((error as { name?: unknown }).name || '') : ''
+  if (name === 'AbortError' || name === 'TimeoutError') return true
+  if ('code' in error && String((error as { code?: unknown }).code || '') === 'ABORT_ERR') return true
+  return false
 }
 
 function formatChatError(error: unknown): string {
@@ -1614,6 +1811,43 @@ function handleDraftKeydown(event: KeyboardEvent) {
 </script>
 
 <style scoped>
+.spark-chat-thread {
+  scroll-behavior: smooth;
+}
+
+.spark-chat-turn {
+  animation: spark-chat-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.spark-chat-avatar {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
+
+.spark-chat-message-panel {
+  min-width: 0;
+}
+
+.spark-chat-send-spinner {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 0.875rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255 / 0.45);
+  border-top-color: currentColor;
+  animation: spark-chat-spin 0.85s linear infinite;
+}
+
+.spark-chat-composer {
+  box-shadow: 0 -1px 0 rgb(17 24 39 / 0.02);
+}
+
 .spark-chat-markdown :deep(p) {
   margin: 0 0 0.75rem;
 }
@@ -1762,14 +1996,31 @@ function handleDraftKeydown(event: KeyboardEvent) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .spark-chat-thread {
+    scroll-behavior: auto;
+  }
+
+  .spark-chat-turn,
   .spark-chat-activity::before,
   .spark-chat-spinner,
   .spark-chat-spinner::after,
+  .spark-chat-send-spinner,
   .spark-chat-live-dot,
   .spark-chat-skeleton span,
   .spark-chat-markdown-streaming :deep(p:last-child)::after,
   .spark-chat-markdown-streaming :deep(li:last-child)::after {
     animation: none;
+  }
+}
+
+@keyframes spark-chat-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
