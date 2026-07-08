@@ -1,6 +1,6 @@
 param(
     [ValidateSet("local", "named")]
-    [string]$Mode = "local",
+    [string]$Mode = "named",
 
     [switch]$Pull,
 
