@@ -15,7 +15,9 @@ const openaiModels = [
   'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'codex-auto-review',
   'gpt-4o-audio-preview', 'gpt-4o-realtime-preview',
   // GPT Image 系列
-  'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'
+  'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2', 'codex-gpt-image-2',
+  // ChatGPT2API / GPT Plus image reverse-proxy aliases
+  'auto', 'gpt-5-3', 'gpt-5-3-mini'
 ]
 
 // Anthropic Claude
@@ -149,12 +151,40 @@ const metaModels = [
 ]
 
 // xAI Grok
-const xaiModels = [
-  'grok-4', 'grok-4-0709',
-  'grok-3-beta', 'grok-3-mini-beta', 'grok-3-fast-beta',
-  'grok-2', 'grok-2-vision', 'grok-2-image',
-  'grok-beta', 'grok-vision-beta'
+const grokModels = [
+  'grok-4.20-0309-non-reasoning',
+  'grok-4.20-0309',
+  'grok-4.20-0309-reasoning',
+  'grok-4.20-0309-non-reasoning-super',
+  'grok-4.20-0309-super',
+  'grok-4.20-0309-reasoning-super',
+  'grok-4.20-0309-non-reasoning-heavy',
+  'grok-4.20-0309-heavy',
+  'grok-4.20-0309-reasoning-heavy',
+  'grok-4.20-multi-agent-0309',
+  'grok-4.20-fast',
+  'grok-4.20-auto',
+  'grok-4.20-expert',
+  'grok-4.20-heavy',
+  'grok-4.3-beta',
+  'grok-4',
+  'grok-4-0709',
+  'grok-3-beta',
+  'grok-3-mini-beta',
+  'grok-3-fast-beta',
+  'grok-2',
+  'grok-2-vision',
+  'grok-2-image',
+  'grok-beta',
+  'grok-vision-beta',
+  'grok-imagine-image-lite',
+  'grok-imagine-image',
+  'grok-imagine-image-pro',
+  'grok-imagine-image-edit',
+  'grok-imagine-video'
 ]
+
+const xaiModels = grokModels
 
 // Cohere
 const cohereModels = [
@@ -348,6 +378,15 @@ const bedrockPresetMappings = [
   { label: 'Haiku 4.5', from: 'claude-haiku-4-5', to: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', color: 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' },
 ]
 
+const grokPresetMappings = [
+  { label: 'Grok Fast', from: 'grok-4.20-fast', to: 'grok-4.20-fast', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300' },
+  { label: 'Grok Auto', from: 'grok-4.20-auto', to: 'grok-4.20-auto', color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300' },
+  { label: 'Grok Expert', from: 'grok-4.20-expert', to: 'grok-4.20-expert', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300' },
+  { label: 'Image', from: 'grok-imagine-image', to: 'grok-imagine-image', color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-300' },
+  { label: 'Image Pro', from: 'grok-imagine-image-pro', to: 'grok-imagine-image-pro', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300' },
+  { label: 'Image Edit', from: 'grok-imagine-image-edit', to: 'grok-imagine-image-edit', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-300' }
+]
+
 const kiroDefaultMappings = kiroPresetMappings.map(({ from, to }) => ({ from, to }))
 
 // Antigravity 默认映射（从后端 API 获取，与 constants.go 保持一致）
@@ -411,7 +450,8 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'deepseek': return deepseekModels
     case 'mistral': return mistralModels
     case 'meta': return metaModels
-    case 'xai': return xaiModels
+    case 'grok':
+    case 'xai': return grokModels
     case 'cohere': return cohereModels
     case 'yi': return yiModels
     case 'moonshot': return moonshotModels
@@ -431,6 +471,7 @@ export function getPresetMappingsByPlatform(platform: string) {
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'antigravity') return antigravityPresetMappings
   if (platform === 'kiro') return kiroPresetMappings
+  if (platform === 'grok' || platform === 'xai') return grokPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings
   return anthropicPresetMappings
 }

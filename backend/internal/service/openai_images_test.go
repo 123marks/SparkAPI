@@ -1424,3 +1424,21 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDiscon
 	require.Equal(t, 9, result.Usage.OutputTokens)
 	require.Equal(t, 4, result.Usage.ImageOutputTokens)
 }
+
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_ChatGPT2APIImageAlias(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"codex-gpt-image-2","prompt":"draw a console UI","size":"1536x1024","n":2}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+
+	require.NoError(t, err)
+	require.Equal(t, "codex-gpt-image-2", parsed.Model)
+	require.Equal(t, 2, parsed.N)
+}

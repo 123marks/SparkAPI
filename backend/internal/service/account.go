@@ -172,6 +172,18 @@ func (a *Account) IsGemini() bool {
 	return a.Platform == PlatformGemini
 }
 
+func (a *Account) IsGrok() bool {
+	return a != nil && a.Platform == PlatformGrok
+}
+
+func (a *Account) IsOpenAICompatible() bool {
+	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
+}
+
+func (a *Account) IsOpenAICompatibleAPIKey() bool {
+	return a != nil && a.IsOpenAICompatible() && a.Type == AccountTypeAPIKey
+}
+
 func (a *Account) IsKiro() bool {
 	return a.Platform == PlatformKiro
 }
@@ -1003,7 +1015,7 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return ""
 	}
 	if a.Type == AccountTypeAPIKey {
@@ -1011,6 +1023,9 @@ func (a *Account) GetOpenAIBaseURL() string {
 		if baseURL != "" {
 			return baseURL
 		}
+	}
+	if a.IsGrok() {
+		return "http://host.docker.internal:18000"
 	}
 	return "https://api.openai.com"
 }
@@ -1037,7 +1052,7 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
+	if !a.IsOpenAICompatibleAPIKey() {
 		return ""
 	}
 	return a.GetCredential("api_key")
@@ -1072,11 +1087,14 @@ func (a *Account) GetOpenAISessionID() string {
 }
 
 func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return false
 	}
 	switch capability {
 	case OpenAIImagesCapabilityBasic, OpenAIImagesCapabilityNative:
+		if a.IsGrok() {
+			return a.Type == AccountTypeAPIKey
+		}
 		return a.Type == AccountTypeOAuth || a.Type == AccountTypeAPIKey
 	default:
 		return true
@@ -1151,16 +1169,21 @@ func (a *Account) IsOveragesEnabled() bool {
 // 兼容字段：accounts.extra.openai_oauth_passthrough（历史 OAuth 开关）。
 // 字段缺失或类型不正确时，按 false（关闭）处理。
 func (a *Account) IsOpenAIPassthroughEnabled() bool {
-	if a == nil || !a.IsOpenAI() || a.Extra == nil {
+	if a == nil || !a.IsOpenAICompatible() {
 		return false
 	}
-	if enabled, ok := a.Extra["openai_passthrough"].(bool); ok {
-		return enabled
+	if a.Extra != nil {
+		if enabled, ok := a.Extra["openai_passthrough"].(bool); ok {
+			return enabled
+		}
+		if enabled, ok := a.Extra["grok_passthrough"].(bool); ok {
+			return enabled
+		}
+		if enabled, ok := a.Extra["openai_oauth_passthrough"].(bool); ok {
+			return enabled
+		}
 	}
-	if enabled, ok := a.Extra["openai_oauth_passthrough"].(bool); ok {
-		return enabled
-	}
-	return false
+	return a.IsGrok() && a.Type == AccountTypeAPIKey
 }
 
 // IsOpenAIResponsesWebSocketV2Enabled 返回 OpenAI 账号是否开启 Responses WebSocket v2。

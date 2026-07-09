@@ -231,4 +231,29 @@ describe('useModelWhitelist', () => {
       modelMappings: [{ from: 'gpt-latest', to: 'gpt-5.4' }]
     })
   })
+
+  it('grok provider exposes grok2api chat and image models', () => {
+    const models = getModelsByPlatform('grok')
+
+    expect(models).toContain('grok-4.20-fast')
+    expect(models).toContain('grok-4.3-beta')
+    expect(models).toContain('grok-imagine-image-pro')
+    expect(models).toContain('grok-imagine-image-edit')
+
+    const mappings = getPresetMappingsByPlatform('grok')
+    expect(mappings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: 'grok-4.20-fast', to: 'grok-4.20-fast' }),
+      expect.objectContaining({ from: 'grok-imagine-image-pro', to: 'grok-imagine-image-pro' })
+    ]))
+  })
+
+  it('includes chatgpt2api image aliases for GPT image reverse proxy accounts', () => {
+    const models = getModelsByPlatform('openai')
+
+    expect(models).toContain('codex-gpt-image-2')
+    expect(models).toContain('auto')
+    expect(models).toContain('gpt-5-3')
+    expect(models).toContain('gpt-5-3-mini')
+  })
+
 })

@@ -10,6 +10,19 @@ vi.mock('vue-i18n', async () => {
       t: (key: string) => key === 'admin.accounts.status.overageActive' ? 'Overage' : key
     })
   }
+
+  it('shows Grok as its own platform label instead of falling back to Gemini', () => {
+    const wrapper = mount(PlatformTypeBadge, {
+      props: {
+        platform: 'grok',
+        type: 'apikey'
+      }
+    })
+
+    expect(wrapper.text()).toContain('Grok')
+    expect(wrapper.text()).not.toContain('Gemini')
+  })
+
 })
 
 describe('PlatformTypeBadge', () => {
@@ -39,4 +52,17 @@ describe('PlatformTypeBadge', () => {
 
     expect(wrapper.text()).not.toContain('Overage')
   })
+
+  it('shows Grok as its own platform label instead of falling back to Gemini', () => {
+    const wrapper = mount(PlatformTypeBadge, {
+      props: {
+        platform: 'grok',
+        type: 'apikey'
+      }
+    })
+
+    expect(wrapper.text()).toContain('Grok')
+    expect(wrapper.text()).not.toContain('Gemini')
+  })
+
 })

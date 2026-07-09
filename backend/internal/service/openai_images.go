@@ -455,12 +455,26 @@ func applyOpenAIImagesDefaults(req *OpenAIImagesRequest) {
 }
 
 func isOpenAIImageGenerationModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-image-")
+	model = strings.ToLower(strings.TrimSpace(model))
+	if strings.HasPrefix(model, "gpt-image-") {
+		return true
+	}
+	switch model {
+	case "codex-gpt-image-2", "auto", "gpt-5", "gpt-5-1", "gpt-5-2", "gpt-5-3", "gpt-5-3-mini", "gpt-5-mini":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGrokImageGenerationModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(model, "grok-imagine-image") || model == "grok-2-image"
 }
 
 func validateOpenAIImagesModel(model string) error {
 	model = strings.TrimSpace(model)
-	if isOpenAIImageGenerationModel(model) {
+	if isOpenAIImageGenerationModel(model) || isGrokImageGenerationModel(model) {
 		return nil
 	}
 	if model == "" {

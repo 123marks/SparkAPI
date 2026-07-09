@@ -488,6 +488,7 @@ const matchModeOptions = computed(() => [
 const platformOptions = [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'grok', label: 'Grok' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
   { value: 'kiro', label: 'Kiro' }

@@ -106,6 +106,43 @@ func TestAccountHandlerGetAvailableModels_OpenAIOAuthUsesExplicitModelMapping(t 
 	require.Equal(t, "gpt-5", resp.Data[0].ID)
 }
 
+func TestAccountHandlerGetAvailableModels_GrokPassthroughUsesGrokDefaults(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       50,
+			Name:     "grok-sidecar",
+			Platform: service.PlatformGrok,
+			Type:     service.AccountTypeAPIKey,
+			Status:   service.StatusActive,
+			Extra: map[string]any{
+				"grok_passthrough": true,
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/50/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make([]string, 0, len(resp.Data))
+	for _, item := range resp.Data {
+		ids = append(ids, item.ID)
+	}
+	require.Contains(t, ids, "grok-4.20-fast")
+	require.Contains(t, ids, "grok-imagine-image-pro")
+	require.NotContains(t, ids, "claude-sonnet-4-6")
+}
+
 func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefaults(t *testing.T) {
 	svc := &availableModelsAdminService{
 		stubAdminService: newStubAdminService(),

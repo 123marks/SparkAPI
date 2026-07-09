@@ -62,13 +62,15 @@ describe('UserPlatformQuotaCell', () => {
       props: {
         quotas: [
           item({ platform: 'gemini', monthly_limit_usd: 50 }),
+          item({ platform: 'grok', daily_limit_usd: 20 }),
           item({ platform: 'anthropic', daily_limit_usd: 10 }),
           item({ platform: 'openai', daily_usage_usd: 9 }),
         ],
       },
     })
     const text = w.text()
-    expect(text.indexOf('anthropic')).toBeLessThan(text.indexOf('gemini'))
+    expect(text.indexOf('anthropic')).toBeLessThan(text.indexOf('grok'))
+    expect(text.indexOf('grok')).toBeLessThan(text.indexOf('gemini'))
     expect(text).not.toContain('openai')
   })
 })

@@ -39,6 +39,7 @@ const (
 const (
 	PlatformAnthropic   = domain.PlatformAnthropic
 	PlatformOpenAI      = domain.PlatformOpenAI
+	PlatformGrok        = domain.PlatformGrok
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
 	PlatformKiro        = domain.PlatformKiro
@@ -50,12 +51,30 @@ const (
 var AllowedQuotaPlatforms = []string{
 	PlatformAnthropic,
 	PlatformOpenAI,
+	PlatformGrok,
 	PlatformGemini,
 	PlatformAntigravity,
 	PlatformKiro,
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。
+
+// NormalizeOpenAICompatiblePlatform keeps OpenAI-compatible providers in isolated
+// scheduling pools while preserving OpenAI as the default for legacy callers.
+func NormalizeOpenAICompatiblePlatform(platform string) string {
+	switch platform {
+	case PlatformGrok:
+		return PlatformGrok
+	default:
+		return PlatformOpenAI
+	}
+}
+
+func IsOpenAICompatiblePlatform(platform string) bool {
+	platform = NormalizeOpenAICompatiblePlatform(platform)
+	return platform == PlatformOpenAI || platform == PlatformGrok
+}
+
 func IsAllowedQuotaPlatform(s string) bool {
 	for _, p := range AllowedQuotaPlatforms {
 		if p == s {

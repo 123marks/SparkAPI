@@ -1015,12 +1015,12 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].npm = '@ai-sdk/google'
     provider[platform].name = 'Antigravity (Gemini)'
     provider[platform].models = antigravityGeminiModels
-  } else if (platform === 'openai') {
+  } else if (platform === 'openai' || platform === 'grok') {
     provider[platform].models = openaiModels
   }
 
   const agent =
-    platform === 'openai'
+    platform === 'openai' || platform === 'grok'
       ? {
           build: {
             options: {

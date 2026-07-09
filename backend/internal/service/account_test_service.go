@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/grok"
 	kiropkg "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
@@ -57,9 +58,9 @@ const (
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 )
 
-// isOpenAIImageModel checks if the model is an OpenAI image generation model (e.g. gpt-image-2).
+// isOpenAIImageModel checks if the model is an OpenAI-compatible image generation model.
 func isOpenAIImageModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
+	return isOpenAIImageGenerationModel(model) || isGrokImageGenerationModel(model)
 }
 
 // AccountTestService handles account testing operations
@@ -184,7 +185,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	// Route to platform-specific test method
-	if account.IsOpenAI() {
+	if account.IsOpenAICompatible() {
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
@@ -652,10 +653,14 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
 
-	// Default to openai.DefaultTestModel for OpenAI testing
+	// Default to the provider's safest text model for OpenAI-compatible testing.
 	testModelID := modelID
 	if testModelID == "" {
-		testModelID = openai.DefaultTestModel
+		if account.IsGrok() {
+			testModelID = grok.DefaultTestModel
+		} else {
+			testModelID = openai.DefaultTestModel
+		}
 	}
 
 	// Align test routing with gateway behavior: OpenAI accounts apply normal

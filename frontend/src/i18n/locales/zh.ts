@@ -3428,6 +3428,7 @@ export default {
       platforms: {
         claude: 'Claude',
         openai: 'OpenAI',
+        grok: 'Grok',
         anthropic: 'Anthropic',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
@@ -3762,6 +3763,12 @@ export default {
       kiro: {
         baseUrlHint: '请输入 Kiro 兼容上游的 Base URL',
         apiKeyHint: '用于该 Kiro 上游的 API Key',
+      },
+      grok: {
+        baseUrlHint: '默认本地 grok2api sidecar 地址为 http://host.docker.internal:18000。若 SparkAPI 没在 Docker 内运行，也可尝试 http://127.0.0.1:18000。',
+        apiKeyHint: '填写 grok2api 的 API Key；如果 grok2api 未开启鉴权，可填占位值。',
+        sidecarTitle: '本地 grok2api sidecar',
+        sidecarHint: '先用 Docker 启动 grok2api，在 grok2api 后台添加 Grok 账号，然后在 SparkAPI 中保持 Grok 分组独立调度。'
       },
       anthropic: {
         apiKeyPassthrough: '自动透传（仅替换认证）',

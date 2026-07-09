@@ -1,0 +1,57 @@
+﻿# =============================================================================
+# SparkAPI optional Grok2API sidecar
+# =============================================================================
+# Usage from deploy/:
+#   docker compose -f docker-compose.local.yml -f docker-compose.grok2api.yml --profile grok2api up -d
+#
+# The default SparkAPI account Base URL for this sidecar is:
+#   http://host.docker.internal:18000
+# If SparkAPI and Grok2API are started in the same compose project/network, you
+# may also use the internal URL:
+#   http://grok2api:8000
+# =============================================================================
+
+services:
+  grok2api:
+    image: ${GROK2API_IMAGE:-ghcr.io/chenyme/grok2api:latest}
+    container_name: ${GROK2API_CONTAINER_NAME:-grok2api}
+    profiles:
+      - grok2api
+    restart: unless-stopped
+    ports:
+      # Bind to localhost by default. Set GROK2API_BIND_HOST=0.0.0.0 only on a trusted host.
+      - "${GROK2API_BIND_HOST:-127.0.0.1}:${GROK2API_HOST_PORT:-18000}:8000"
+    volumes:
+      - ./grok2api/data:/app/data
+      - ./grok2api/logs:/app/logs
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - LOG_LEVEL=${GROK2API_LOG_LEVEL:-INFO}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      - SERVER_WORKERS=${GROK2API_SERVER_WORKERS:-1}
+      - ACCOUNT_STORAGE=${GROK2API_ACCOUNT_STORAGE:-local}
+      - ACCOUNT_LOCAL_PATH=${GROK2API_ACCOUNT_LOCAL_PATH:-data/accounts.db}
+      - ACCOUNT_REDIS_URL=${GROK2API_ACCOUNT_REDIS_URL:-}
+      - ACCOUNT_MYSQL_URL=${GROK2API_ACCOUNT_MYSQL_URL:-}
+      - ACCOUNT_POSTGRESQL_URL=${GROK2API_ACCOUNT_POSTGRESQL_URL:-}
+      # Optional grok2api auth/runtime overrides. The GROK_ prefix maps to
+      # grok2api runtime config keys, e.g. GROK_APP_API_KEY -> app.api_key.
+      - GROK_APP_API_KEY=${GROK2API_API_KEY:-}
+      - GROK_APP_APP_KEY=${GROK2API_ADMIN_KEY:-grok2api}
+      - GROK_APP_APP_URL=${GROK2API_APP_URL:-http://127.0.0.1:18000}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          if [ -n "$${GROK_APP_API_KEY}" ]; then
+            wget -q -T 5 --header="Authorization: Bearer $${GROK_APP_API_KEY}" -O /dev/null http://127.0.0.1:8000/v1/models;
+          else
+            wget -q -T 5 -O /dev/null http://127.0.0.1:8000/v1/models;
+          fi
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

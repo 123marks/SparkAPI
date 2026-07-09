@@ -769,7 +769,7 @@ const form = reactive({
 let abortController: AbortController | null = null
 
 // ── Platform config ──
-const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'kiro']
+const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'grok', 'gemini', 'antigravity', 'kiro']
 
 // ── Helpers ──
 function formatDate(value: string): string {
@@ -880,18 +880,18 @@ function addPricingEntry(sectionIdx: number) {
 
 const syncingPlatform = ref<string | null>(null)
 
-function isKiroPlatform(platform: string): boolean {
-  return platform === 'kiro'
+function isPresetModelPlatform(platform: string): boolean {
+  return platform === 'kiro' || platform === 'grok'
 }
 
 function pricingModelsActionLabel(platform: string): string {
-  return isKiroPlatform(platform)
+  return isPresetModelPlatform(platform)
     ? t('admin.channels.form.fillDefaultModels', '填充默认模型')
     : t('admin.channels.form.syncLatestModels')
 }
 
 function pricingModelsActionLoadingLabel(platform: string): string {
-  return isKiroPlatform(platform)
+  return isPresetModelPlatform(platform)
     ? t('admin.channels.form.fillingDefaultModels', '填充中...')
     : t('admin.channels.form.syncingModels')
 }
@@ -901,8 +901,8 @@ async function syncLatestModels(sectionIdx: number) {
   if (syncingPlatform.value) return
   syncingPlatform.value = platform
   try {
-    if (isKiroPlatform(platform)) {
-      await fillKiroDefaultModels(sectionIdx)
+    if (isPresetModelPlatform(platform)) {
+      await fillDefaultModelsForPlatform(sectionIdx, platform)
       return
     }
 
@@ -927,14 +927,14 @@ async function syncLatestModels(sectionIdx: number) {
   }
 }
 
-async function fillKiroDefaultModels(sectionIdx: number) {
+async function fillDefaultModelsForPlatform(sectionIdx: number, platform: GroupPlatform) {
   const section = form.platforms[sectionIdx]
   const existingModels = new Set<string>()
   for (const entry of section.model_pricing) {
     for (const model of entry.models) existingModels.add(model)
   }
 
-  const newModels = getModelsByPlatform('kiro').filter(model => !existingModels.has(model))
+  const newModels = getModelsByPlatform(platform).filter(model => !existingModels.has(model))
   if (newModels.length === 0) {
     appStore.showSuccess(t('admin.channels.form.fillDefaultModelsAlreadyConfigured', '默认模型已全部配置'))
     return

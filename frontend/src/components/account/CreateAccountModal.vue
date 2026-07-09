@@ -70,7 +70,7 @@
       <!-- Platform Selection - Segmented Control Style -->
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
-        <div class="mt-2 flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700" data-tour="account-form-platform">
+        <div class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 xl:grid-cols-6" data-tour="account-form-platform">
           <button
             type="button"
             @click="form.platform = 'anthropic'"
@@ -108,6 +108,19 @@
               />
             </svg>
             OpenAI
+          </button>
+          <button
+            type="button"
+            @click="form.platform = 'grok'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'grok'
+                ? 'bg-white text-cyan-700 shadow-sm dark:bg-dark-600 dark:text-cyan-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="grok" size="sm" />
+            Grok
           </button>
           <button
             type="button"
@@ -999,6 +1012,11 @@
         </div>
       </div>
 
+      <div v-if="form.platform === 'grok' && accountCategory === 'apikey'" class="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 dark:border-cyan-800/40 dark:bg-cyan-900/20 dark:text-cyan-100">
+        <p class="font-medium">{{ t('admin.accounts.grok.sidecarTitle') }}</p>
+        <p class="mt-1">{{ t('admin.accounts.grok.sidecarHint') }}</p>
+      </div>
+
       <div v-if="form.platform === 'kiro' && accountCategory === 'apikey'" class="space-y-4">
         <div>
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
@@ -1483,6 +1501,8 @@
             :placeholder="
               form.platform === 'openai'
                 ? 'https://api.openai.com'
+                : form.platform === 'grok'
+                  ? GROK_DEFAULT_BASE_URL
                 : form.platform === 'gemini'
                   ? 'https://generativelanguage.googleapis.com'
                   : 'https://api.anthropic.com'
@@ -1500,6 +1520,8 @@
             :placeholder="
               form.platform === 'openai'
                 ? 'sk-proj-...'
+                : form.platform === 'grok'
+                  ? 'grok2api-key-or-placeholder'
                 : form.platform === 'gemini'
                   ? 'AIza...'
                   : 'sk-ant-...'
@@ -3705,6 +3727,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
@@ -3758,6 +3781,7 @@ const oauthStepTitle = computed(() => {
 // Platform-specific hints for API Key type
 const baseUrlHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
+  if (form.platform === 'grok') return t('admin.accounts.grok.baseUrlHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
   if (form.platform === 'kiro') return t('admin.accounts.kiro.baseUrlHint')
   return t('admin.accounts.baseUrlHint')
@@ -3765,6 +3789,7 @@ const baseUrlHint = computed(() => {
 
 const apiKeyHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.apiKeyHint')
+  if (form.platform === 'grok') return t('admin.accounts.grok.apiKeyHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.apiKeyHint')
   if (form.platform === 'kiro') return t('admin.accounts.kiro.apiKeyHint')
   return t('admin.accounts.apiKeyHint')
@@ -3839,6 +3864,8 @@ interface TempUnschedRuleForm {
   duration_minutes: number | null
   description: string
 }
+
+const GROK_DEFAULT_BASE_URL = 'http://host.docker.internal:18000'
 
 // State
 const step = ref(1)
@@ -4036,7 +4063,7 @@ const openAIWSModeConcurrencyHintKey = computed(() =>
 )
 
 const isOpenAIModelRestrictionDisabled = computed(() =>
-  form.platform === 'openai' && openaiPassthroughEnabled.value
+  (form.platform === 'openai' && openaiPassthroughEnabled.value) || form.platform === 'grok'
 )
 
 const mixedChannelWarningMessageText = computed(() => {
@@ -4222,6 +4249,8 @@ watch(
     apiKeyBaseUrl.value =
       (newPlatform === 'openai')
         ? 'https://api.openai.com'
+        : newPlatform === 'grok'
+          ? GROK_DEFAULT_BASE_URL
         : newPlatform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
           : newPlatform === 'kiro'
@@ -4239,6 +4268,16 @@ watch(
       antigravityWhitelistModels.value = []
       accountCategory.value = 'oauth-based'
       antigravityAccountType.value = 'oauth'
+    } else if (newPlatform === 'grok') {
+      accountCategory.value = 'apikey'
+      form.type = 'apikey'
+      apiKeyBaseUrl.value = GROK_DEFAULT_BASE_URL
+      openaiPassthroughEnabled.value = true
+      allowedModels.value = [...getModelsByPlatform('grok')]
+      antigravityWhitelistModels.value = []
+      antigravityModelMappings.value = []
+      antigravityModelRestrictionMode.value = 'mapping'
+      kiroModelMappings.value = []
     } else if (newPlatform === 'kiro') {
       fetchKiroDefaultMappings().then(mappings => {
         kiroModelMappings.value = [...mappings]
@@ -4277,7 +4316,7 @@ watch(
     if (newPlatform !== 'anthropic' && newPlatform !== 'antigravity') {
       interceptWarmupRequests.value = false
     }
-    if (newPlatform !== 'openai') {
+    if (newPlatform !== 'openai' && newPlatform !== 'grok') {
       openaiPassthroughEnabled.value = false
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -4773,6 +4812,12 @@ const handleClose = () => {
 }
 
 const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
+  if (form.platform === 'grok') {
+    const extra: Record<string, unknown> = { ...(base || {}) }
+    extra.openai_passthrough = true
+    extra.grok_passthrough = true
+    return extra
+  }
   if (form.platform !== 'openai') {
     return base
   }
@@ -5124,6 +5169,8 @@ const handleSubmit = async () => {
   const defaultBaseUrl =
     form.platform === 'openai'
       ? 'https://api.openai.com'
+      : form.platform === 'grok'
+        ? GROK_DEFAULT_BASE_URL
       : form.platform === 'gemini'
         ? 'https://generativelanguage.googleapis.com'
         : 'https://api.anthropic.com'

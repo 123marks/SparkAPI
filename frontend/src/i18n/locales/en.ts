@@ -2329,6 +2329,7 @@ export default {
         all: 'All Platforms',
         anthropic: 'Anthropic',
         openai: 'OpenAI',
+        grok: 'Grok',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         kiro: 'Kiro',
@@ -3243,6 +3244,7 @@ export default {
         anthropic: 'Anthropic',
         claude: 'Claude',
         openai: 'OpenAI',
+        grok: 'Grok',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         kiro: 'Kiro',
@@ -3604,6 +3606,12 @@ export default {
       kiro: {
         baseUrlHint: 'Enter the Base URL of the Kiro-compatible upstream',
         apiKeyHint: 'API Key for that Kiro upstream',
+      },
+      grok: {
+        baseUrlHint: 'Default local grok2api sidecar URL is http://host.docker.internal:18000. If SparkAPI is not running in Docker, http://127.0.0.1:18000 may also work.',
+        apiKeyHint: 'Use the grok2api API key. If grok2api auth is disabled, a placeholder value is acceptable.',
+        sidecarTitle: 'Local grok2api sidecar',
+        sidecarHint: 'Start grok2api with Docker, add Grok accounts in grok2api, then keep this provider isolated in a Grok group.'
       },
       anthropic: {
         apiKeyPassthrough: 'Auto passthrough (auth only)',

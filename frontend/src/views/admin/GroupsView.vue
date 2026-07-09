@@ -104,6 +104,8 @@
                   ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                   : value === 'openai'
                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : value === 'grok'
+                      ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300'
                     : value === 'antigravity'
                       ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                       : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -670,7 +672,8 @@
           v-if="
             createForm.platform === 'antigravity' ||
             createForm.platform === 'gemini' ||
-            createForm.platform === 'openai'
+            createForm.platform === 'openai' ||
+            createForm.platform === 'grok'
           "
           class="border-t pt-4"
         >
@@ -1206,7 +1209,7 @@
         <!-- 账号过滤控制 (OpenAI/Antigravity/Anthropic/Gemini/Kiro) -->
         <div
           v-if="
-            ['openai', 'antigravity', 'anthropic', 'gemini', 'kiro'].includes(
+            ['openai', 'grok', 'antigravity', 'anthropic', 'gemini', 'kiro'].includes(
               createForm.platform,
             )
           "
@@ -1873,7 +1876,8 @@
           v-if="
             editForm.platform === 'antigravity' ||
             editForm.platform === 'gemini' ||
-            editForm.platform === 'openai'
+            editForm.platform === 'openai' ||
+            editForm.platform === 'grok'
           "
           class="border-t pt-4"
         >
@@ -2405,7 +2409,7 @@
         <!-- 账号过滤控制 (OpenAI/Antigravity/Anthropic/Gemini) -->
         <div
           v-if="
-            ['openai', 'antigravity', 'anthropic', 'gemini'].includes(
+            ['openai', 'grok', 'antigravity', 'anthropic', 'gemini'].includes(
               editForm.platform,
             )
           "
@@ -2958,6 +2962,7 @@ const exclusiveOptions = computed(() => [
 const platformOptions = computed(() => [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
+  { value: "grok", label: "Grok" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
   { value: "kiro", label: "Kiro" },
@@ -2967,6 +2972,7 @@ const platformFilterOptions = computed(() => [
   { value: "", label: t("admin.groups.allPlatforms") },
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
+  { value: "grok", label: "Grok" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
   { value: "kiro", label: "Kiro" },
@@ -4029,7 +4035,7 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(createForm);
     }
-    if (!["openai", "antigravity", "anthropic", "gemini", "kiro"].includes(newVal)) {
+    if (!["openai", "grok", "antigravity", "anthropic", "gemini", "kiro"].includes(newVal)) {
       createForm.require_oauth_only = false;
       createForm.require_privacy_set = false;
     }
@@ -4045,7 +4051,7 @@ watch(
     if (newVal !== "openai") {
       resetMessagesDispatchFormState(editForm);
     }
-    if (!["openai", "antigravity", "anthropic", "gemini", "kiro"].includes(newVal)) {
+    if (!["openai", "grok", "antigravity", "anthropic", "gemini", "kiro"].includes(newVal)) {
       editForm.require_oauth_only = false;
       editForm.require_privacy_set = false;
     }

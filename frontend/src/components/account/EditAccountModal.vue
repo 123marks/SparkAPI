@@ -37,6 +37,8 @@
             :placeholder="
               account.platform === 'openai'
                 ? 'https://api.openai.com'
+                : account.platform === 'grok'
+                  ? 'http://host.docker.internal:18000'
                 : account.platform === 'gemini'
                   ? 'https://generativelanguage.googleapis.com'
                   : account.platform === 'kiro'
@@ -61,6 +63,8 @@
             :placeholder="
               account.platform === 'openai'
                 ? 'sk-proj-...'
+                : account.platform === 'grok'
+                  ? 'grok2api-key-or-placeholder'
                 : account.platform === 'gemini'
                   ? 'AIza...'
                   : account.platform === 'kiro'
@@ -2501,6 +2505,7 @@ const authStore = useAuthStore()
 const baseUrlHint = computed(() => {
   if (!props.account) return t('admin.accounts.baseUrlHint')
   if (props.account.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
+  if (props.account.platform === 'grok') return t('admin.accounts.grok.baseUrlHint')
   if (props.account.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
   if (props.account.platform === 'kiro') return t('admin.accounts.kiro.baseUrlHint')
   return t('admin.accounts.baseUrlHint')
@@ -2801,6 +2806,7 @@ const tempUnschedPresets = computed(() => [
 // Computed: default base URL based on platform
 const defaultBaseUrl = computed(() => {
   if (props.account?.platform === 'openai') return 'https://api.openai.com'
+  if (props.account?.platform === 'grok') return 'http://host.docker.internal:18000'
   if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
   if (props.account?.platform === 'kiro') return ''
   return 'https://api.anthropic.com'
