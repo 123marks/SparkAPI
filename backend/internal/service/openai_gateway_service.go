@@ -3003,6 +3003,15 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		return nil, policyErr
 	}
 	body = updatedBody
+	if account != nil && account.IsGrok() {
+		grokBody, changed, err := sanitizeGrokSidecarRequestBody(policyModel, body)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			body = grokBody
+		}
+	}
 
 	apiKey := getAPIKeyFromContext(c)
 	if IsImageGenerationIntent(openAIResponsesEndpoint, reqModel, body) && !GroupAllowsImageGeneration(apiKeyGroup(apiKey)) {
@@ -6482,6 +6491,52 @@ func sanitizeEmptyBase64InputImagesInOpenAIBody(body []byte) ([]byte, bool, erro
 		return body, false, fmt.Errorf("serialize sanitized request body: %w", err)
 	}
 	return normalized, true, nil
+}
+
+func sanitizeGrokSidecarRequestBody(model string, body []byte) ([]byte, bool, error) {
+	if len(body) == 0 {
+		return body, false, nil
+	}
+	if !gjson.ValidBytes(body) {
+		return body, false, fmt.Errorf("sanitize grok request body: invalid json")
+	}
+	bodyModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	if bodyModel != "" {
+		model = bodyModel
+	}
+	if !isGrokSidecarStrictOpenAICompatModel(model) {
+		return body, false, nil
+	}
+	updated := body
+	changed := false
+	for _, path := range []string{
+		"presence_penalty",
+		"presencePenalty",
+		"frequency_penalty",
+		"frequencyPenalty",
+		"stop",
+	} {
+		if !gjson.GetBytes(updated, path).Exists() {
+			continue
+		}
+		var err error
+		updated, err = sjson.DeleteBytes(updated, path)
+		if err != nil {
+			return body, false, fmt.Errorf("sanitize grok request body: %w", err)
+		}
+		changed = true
+	}
+	return updated, changed, nil
+}
+
+func isGrokSidecarStrictOpenAICompatModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	switch model {
+	case "grok-4.5", "grok-4.5-latest", "grok-latest", "grok-build-latest":
+		return true
+	default:
+		return false
+	}
 }
 
 func sanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody map[string]any) bool {

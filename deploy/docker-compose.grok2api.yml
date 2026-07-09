@@ -13,10 +13,11 @@
 
 services:
   grok2api:
-    image: ${GROK2API_IMAGE:-ghcr.io/chenyme/grok2api:latest}
+    image: ${GROK2API_IMAGE:-ghcr.io/jiujiu532/grok2api:latest}
     container_name: ${GROK2API_CONTAINER_NAME:-grok2api}
     profiles:
       - grok2api
+      - grok2api-warp
     restart: unless-stopped
     ports:
       # Bind to localhost by default. Set GROK2API_BIND_HOST=0.0.0.0 only on a trusted host.
@@ -40,6 +41,11 @@ services:
       - GROK_APP_API_KEY=${GROK2API_API_KEY:-}
       - GROK_APP_APP_KEY=${GROK2API_ADMIN_KEY:-grok2api}
       - GROK_APP_APP_URL=${GROK2API_APP_URL:-http://127.0.0.1:18000}
+      - GROK_PROXY_EGRESS_MODE=${GROK2API_PROXY_EGRESS_MODE:-}
+      - GROK_PROXY_EGRESS_PROXY_URL=${GROK2API_PROXY_EGRESS_PROXY_URL:-}
+      - GROK_PROXY_EGRESS_RESOURCE_PROXY_URL=${GROK2API_PROXY_EGRESS_RESOURCE_PROXY_URL:-}
+      - GROK_PROXY_CLEARANCE_MODE=${GROK2API_PROXY_CLEARANCE_MODE:-}
+      - GROK_PROXY_CLEARANCE_FLARESOLVERR_URL=${GROK2API_FLARESOLVERR_URL:-}
     networks:
       - sub2api-network
     healthcheck:
@@ -55,3 +61,42 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  grok2api-warp:
+    image: ${GROK2API_WARP_IMAGE:-caomingjun/warp:latest}
+    container_name: ${GROK2API_WARP_CONTAINER_NAME:-grok2api-warp}
+    profiles:
+      - grok2api-warp
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - WARP_SLEEP=${GROK2API_WARP_SLEEP:-2}
+    networks:
+      - sub2api-network
+
+  grok2api-privoxy:
+    image: ${GROK2API_PRIVOXY_IMAGE:-ghcr.io/jiujiu532/privoxy-warp:latest}
+    container_name: ${GROK2API_PRIVOXY_CONTAINER_NAME:-grok2api-privoxy}
+    profiles:
+      - grok2api-warp
+    restart: unless-stopped
+    depends_on:
+      - grok2api-warp
+    networks:
+      - sub2api-network
+
+  grok2api-flaresolverr:
+    image: ${GROK2API_FLARESOLVERR_IMAGE:-ghcr.io/flaresolverr/flaresolverr:latest}
+    container_name: ${GROK2API_FLARESOLVERR_CONTAINER_NAME:-grok2api-flaresolverr}
+    profiles:
+      - grok2api-warp
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=${GROK2API_FLARESOLVERR_LOG_LEVEL:-info}
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - sub2api-network

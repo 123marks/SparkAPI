@@ -235,13 +235,21 @@ describe('useModelWhitelist', () => {
   it('grok provider exposes grok2api chat and image models', () => {
     const models = getModelsByPlatform('grok')
 
+    expect(models).toContain('grok-4.5')
+    expect(models).toContain('grok-4.3-fast')
     expect(models).toContain('grok-4.20-fast')
+    expect(models).toContain('grok-4.3-console')
     expect(models).toContain('grok-4.3-beta')
+    expect(models).toContain('grok-imagine')
     expect(models).toContain('grok-imagine-image-pro')
+    expect(models).toContain('grok-imagine-edit')
     expect(models).toContain('grok-imagine-image-edit')
+    expect(models).toContain('grok-imagine-video-1.5')
 
     const mappings = getPresetMappingsByPlatform('grok')
     expect(mappings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: 'grok-latest', to: 'grok-4.5' }),
+      expect.objectContaining({ from: 'composer-2.5', to: 'grok-composer-2.5-fast' }),
       expect.objectContaining({ from: 'grok-4.20-fast', to: 'grok-4.20-fast' }),
       expect.objectContaining({ from: 'grok-imagine-image-pro', to: 'grok-imagine-image-pro' })
     ]))

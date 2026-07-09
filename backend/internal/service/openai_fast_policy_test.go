@@ -164,6 +164,43 @@ func TestApplyOpenAIFastPolicyToBody_DefaultPassesPriorityAndFast(t *testing.T) 
 	require.Equal(t, string(body), string(updated))
 }
 
+func TestSanitizeGrokSidecarRequestBody_StripsUnsupportedGrok45Fields(t *testing.T) {
+	body := []byte(`{"model":"grok-4.5","messages":[],"stop":["END"],"presence_penalty":0.1,"presencePenalty":0.2,"frequency_penalty":0.3,"frequencyPenalty":0.4,"temperature":0.7}`)
+
+	updated, changed, err := sanitizeGrokSidecarRequestBody("grok-4.5", body)
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "grok-4.5", gjson.GetBytes(updated, "model").String())
+	require.Equal(t, 0.7, gjson.GetBytes(updated, "temperature").Float())
+	require.False(t, gjson.GetBytes(updated, "stop").Exists())
+	require.False(t, gjson.GetBytes(updated, "presence_penalty").Exists())
+	require.False(t, gjson.GetBytes(updated, "presencePenalty").Exists())
+	require.False(t, gjson.GetBytes(updated, "frequency_penalty").Exists())
+	require.False(t, gjson.GetBytes(updated, "frequencyPenalty").Exists())
+}
+
+func TestSanitizeGrokSidecarRequestBody_SkipsNonGrok45Models(t *testing.T) {
+	body := []byte(`{"model":"grok-4.20-auto","stop":["END"],"presence_penalty":0.1}`)
+
+	updated, changed, err := sanitizeGrokSidecarRequestBody("grok-4.20-auto", body)
+
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.Equal(t, string(body), string(updated))
+}
+
+func TestSanitizeGrokSidecarRequestBody_UsesBodyModelAfterMapping(t *testing.T) {
+	body := []byte(`{"model":"grok-4.5","stop":["END"],"messages":[]}`)
+
+	updated, changed, err := sanitizeGrokSidecarRequestBody("client-alias", body)
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "grok-4.5", gjson.GetBytes(updated, "model").String())
+	require.False(t, gjson.GetBytes(updated, "stop").Exists())
+}
+
 func TestApplyOpenAIFastPolicyToBody_ExplicitFilterRemovesField(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}

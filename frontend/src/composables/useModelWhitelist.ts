@@ -152,6 +152,14 @@ const metaModels = [
 
 // xAI Grok
 const grokModels = [
+  'grok-4.5',
+  'grok-4.5-latest',
+  'grok-build-latest',
+  'grok-4.3',
+  'grok-build-0.1',
+  'grok-composer-2.5-fast',
+  'grok-composer',
+  'composer-2.5',
   'grok-4.20-0309-non-reasoning',
   'grok-4.20-0309',
   'grok-4.20-0309-reasoning',
@@ -166,7 +174,23 @@ const grokModels = [
   'grok-4.20-auto',
   'grok-4.20-expert',
   'grok-4.20-heavy',
+  'grok-4.3-fast',
   'grok-4.3-beta',
+  'grok-4.3-console',
+  'grok-4.3-low',
+  'grok-4.3-medium',
+  'grok-4.3-high',
+  'grok-4.20-0309-console',
+  'grok-4.20-0309-reasoning-console',
+  'grok-4.20-0309-non-reasoning-console',
+  'grok-4.20-multi-agent-console',
+  'grok-4.20-multi-agent-low',
+  'grok-4.20-multi-agent-medium',
+  'grok-4.20-multi-agent-high',
+  'grok-4.20-multi-agent-xhigh',
+  'grok-build-console',
+  'grok',
+  'grok-latest',
   'grok-4',
   'grok-4-0709',
   'grok-3-beta',
@@ -177,11 +201,15 @@ const grokModels = [
   'grok-2-image',
   'grok-beta',
   'grok-vision-beta',
+  'grok-imagine',
   'grok-imagine-image-lite',
   'grok-imagine-image',
+  'grok-imagine-image-quality',
   'grok-imagine-image-pro',
+  'grok-imagine-edit',
   'grok-imagine-image-edit',
-  'grok-imagine-video'
+  'grok-imagine-video',
+  'grok-imagine-video-1.5'
 ]
 
 const xaiModels = grokModels
@@ -379,12 +407,21 @@ const bedrockPresetMappings = [
 ]
 
 const grokPresetMappings = [
+  { label: 'Grok 4.5', from: 'grok-4.5', to: 'grok-4.5', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
+  { label: 'Grok Latest', from: 'grok-latest', to: 'grok-4.5', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  { label: '4.5 Latest', from: 'grok-4.5-latest', to: 'grok-4.5', color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400' },
   { label: 'Grok Fast', from: 'grok-4.20-fast', to: 'grok-4.20-fast', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300' },
+  { label: 'Grok 4.3 Fast', from: 'grok-4.3-fast', to: 'grok-4.3-fast', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300' },
   { label: 'Grok Auto', from: 'grok-4.20-auto', to: 'grok-4.20-auto', color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300' },
   { label: 'Grok Expert', from: 'grok-4.20-expert', to: 'grok-4.20-expert', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300' },
+  { label: 'Console 4.3', from: 'grok-4.3-console', to: 'grok-4.3-console', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-300' },
+  { label: 'Build Latest', from: 'grok-build-latest', to: 'grok-4.5', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-300' },
+  { label: 'Composer 2.5', from: 'grok-composer', to: 'grok-composer-2.5-fast', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-300' },
+  { label: 'Composer legacy', from: 'composer-2.5', to: 'grok-composer-2.5-fast', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-300' },
   { label: 'Image', from: 'grok-imagine-image', to: 'grok-imagine-image', color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-300' },
   { label: 'Image Pro', from: 'grok-imagine-image-pro', to: 'grok-imagine-image-pro', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300' },
-  { label: 'Image Edit', from: 'grok-imagine-image-edit', to: 'grok-imagine-image-edit', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-300' }
+  { label: 'Image Edit', from: 'grok-imagine-edit', to: 'grok-imagine-edit', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-300' },
+  { label: 'Video', from: 'grok-imagine-video-1.5', to: 'grok-imagine-video-1.5', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300' }
 ]
 
 const kiroDefaultMappings = kiroPresetMappings.map(({ from, to }) => ({ from, to }))

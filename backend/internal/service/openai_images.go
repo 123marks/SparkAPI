@@ -469,7 +469,10 @@ func isOpenAIImageGenerationModel(model string) bool {
 
 func isGrokImageGenerationModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(model, "grok-imagine-image") || model == "grok-2-image"
+	return strings.HasPrefix(model, "grok-imagine-image") ||
+		model == "grok-imagine" ||
+		model == "grok-imagine-edit" ||
+		model == "grok-2-image"
 }
 
 func validateOpenAIImagesModel(model string) error {

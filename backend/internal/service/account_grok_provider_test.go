@@ -135,6 +135,9 @@ func TestOpenAIGatewayService_SelectAccountWithSchedulerForImagesPlatform_GrokRe
 }
 
 func TestGrokImageModelsUseOpenAICompatibleImageTestPath(t *testing.T) {
+	require.True(t, isOpenAIImageModel("grok-imagine"))
 	require.True(t, isOpenAIImageModel("grok-imagine-image-pro"))
+	require.True(t, isOpenAIImageModel("grok-imagine-edit"))
 	require.True(t, isOpenAIImageModel("grok-imagine-image-edit"))
+	require.False(t, isOpenAIImageModel("grok-imagine-video-1.5"))
 }
